@@ -1,0 +1,8 @@
+dist
+coverage
+node_modules
+package-lock.json
+public
+# Pinned by generator and compared byte for byte; reformatting would invalidate it.
+src/state/__tests__/__goldens__
+src/plots/__tests__/__snapshots__

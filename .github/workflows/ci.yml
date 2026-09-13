@@ -1,0 +1,71 @@
+# Continuous integration.
+#
+# The site is static and has no backend, so there is nothing here to deploy
+# against and nothing to mock: the whole check is "does it compile, does it agree
+# with itself, and do the numbers still come out right".
+#
+# The test suite is the interesting half. Most of it pins DSP output against
+# closed-form values rather than against a previous run, so a green build is a
+# statement about the physics, not only about the types.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A new push makes an in-flight run of the same branch irrelevant.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # `npm ci` rather than `npm install`: it installs exactly the lockfile, so a
+      # transitive dependency cannot change the numbers between a local run and CI.
+      - name: Install
+        run: npm ci
+
+      - name: Format
+        run: npx prettier --check .
+
+      - name: Lint
+        run: npx eslint .
+
+      - name: Typecheck
+        run: npx tsc -b --force
+
+      - name: Test
+        run: npm run test -- --reporter=verbose
+
+      # The app shell does not exist yet, so there is nothing for Vite to build
+      # from. This step starts running by itself the moment index.html lands,
+      # which is the point of writing it as a condition rather than a TODO.
+      - name: Build
+        if: ${{ hashFiles('index.html') != '' }}
+        run: npx vite build
+
+      - name: Upload build output
+        if: ${{ hashFiles('index.html') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: dist
+          retention-days: 7

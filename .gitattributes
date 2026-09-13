@@ -1,0 +1,17 @@
+# Normalise to LF in the index and in the working tree on every platform.
+# `.editorconfig` and `.prettierrc.json` both specify LF, and `prettier --check`
+# runs in CI: without this, a clone on Windows with core.autocrlf=true would
+# check out CRLF and fail the format check on files nobody had touched.
+* text=auto eol=lf
+
+# Binary, so never touched by line-ending or diff heuristics.
+*.png binary
+*.woff binary
+*.woff2 binary
+*.s2p binary
+*.s4p binary
+
+# Generated and compared byte for byte; a diff of it is noise.
+src/state/__tests__/__goldens__/*.json linguist-generated=true
+src/plots/__tests__/__snapshots__/*.snap linguist-generated=true
+package-lock.json linguist-generated=true
