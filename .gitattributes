@@ -4,6 +4,12 @@
 # check out CRLF and fail the format check on files nobody had touched.
 * text=auto eol=lf
 
+# Windows batch scripts want CRLF specifically - some cmd.exe / COMMAND.COM
+# lineage tooling mis-parses LF-only .bat files. This overrides the blanket
+# eol=lf above for just this extension.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
 # Binary, so never touched by line-ending or diff heuristics.
 *.png binary
 *.woff binary
