@@ -528,3 +528,67 @@ export function applyResponse(
   for (let i = 0; i < n; i++) out[i] = filtered[guard + i];
   return out;
 }
+
+/**
+ * Rise time of `n` identical single poles in cascade, seconds.
+ *
+ * The step response of one pole is 1 - e^{-x} with x = t/tau. Cascading n of them
+ * convolves n identical exponentials, and the result is the Erlang cumulative
+ * distribution:
+ *
+ *     s_n(x) = 1 - e^{-x} * sum_{k=0}^{n-1} x^k / k!,    x = t / tau
+ *
+ * which is monotone from 0 to 1 for every n, so the transition levels are crossed
+ * exactly once and a bisection is both safe and exact to machine precision. Each
+ * pole has -3 dB bandwidth `bwPole`, so tau = 1 / (2*pi*bwPole).
+ *
+ * This exists to make one specific claim checkable. Rise times are routinely
+ * combined in quadrature - t_total = sqrt(sum of t_i^2) - and that rule is exact
+ * only for Gaussian responses, because only Gaussians convolve to a Gaussian whose
+ * width is the quadrature sum. For two identical poles the true 10-90% rise time is
+ * 0.5344278/bwPole against an RSS estimate of 0.4945493/bwPole: the estimate is
+ * 7.46% low, and it is low in the optimistic direction.
+ *
+ * For n = 1 it reduces to ln((1-lo)/(1-hi)) / (2*pi*bwPole), which is
+ * `riseTimeBandwidthProduct` for type 'rc' and is asserted as such in the tests.
+ *
+ * @param n     number of identical poles in cascade, n >= 1
+ * @param bwPole -3 dB bandwidth of each pole, Hz
+ * @param lo    lower reference level as a fraction of the step
+ * @param hi    upper reference level as a fraction of the step
+ */
+export function cascadedPoleRiseTime(n: number, bwPole: number, lo = 0.1, hi = 0.9): number {
+  const poles = Math.max(1, Math.floor(n));
+  if (!(lo > 0 && hi < 1 && lo < hi)) {
+    throw new Error('cascadedPoleRiseTime: levels must satisfy 0 < lo < hi < 1');
+  }
+  if (!(bwPole > 0)) return NaN;
+
+  // s_n(x), evaluated with a running term so no factorial is ever formed.
+  const step = (x: number): number => {
+    let term = 1;
+    let sum = 1;
+    for (let k = 1; k < poles; k++) {
+      term *= x / k;
+      sum += term;
+    }
+    return 1 - Math.exp(-x) * sum;
+  };
+
+  const solve = (level: number): number => {
+    let a = 0;
+    // s_n grows without bound in x; double until the level is bracketed. n poles
+    // need roughly n times the excursion of one, so this terminates in a few steps.
+    let b = 1;
+    while (step(b) < level && b < 1e6) b *= 2;
+    for (let i = 0; i < 200; i++) {
+      const m = 0.5 * (a + b);
+      if (step(m) < level) a = m;
+      else b = m;
+    }
+    return 0.5 * (a + b);
+  };
+
+  const tau = 1 / (2 * Math.PI * bwPole);
+  return (solve(hi) - solve(lo)) * tau;
+}

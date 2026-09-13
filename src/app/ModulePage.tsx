@@ -16,12 +16,17 @@ import type { ComponentType } from 'react';
 import { ModuleShell } from '../ui/ModuleShell';
 import { Placeholder } from '../modules/Placeholder';
 import { panelsFor } from '../modules/registry';
+import { M1 } from '../modules/m1/M1';
+import { M2 } from '../modules/m2/M2';
 
 /**
- * Modules with a written body. Empty at Milestone 1 by design: the shell is the
- * milestone, and M1 onwards are the milestones after it.
+ * Modules with a written body. Everything not listed here falls through to
+ * `Placeholder`, which says plainly that the module is an outline.
  */
-const BODIES: Record<string, ComponentType<{ moduleId: string }>> = {};
+const BODIES: Record<string, ComponentType<{ moduleId: string }>> = {
+  m1: M1,
+  m2: M2,
+};
 
 export function ModulePage({ moduleId }: { moduleId: string }): JSX.Element {
   const Body = BODIES[moduleId] ?? Placeholder;

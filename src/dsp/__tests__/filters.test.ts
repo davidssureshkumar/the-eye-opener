@@ -10,6 +10,7 @@ import {
   toDb,
   fromDb,
   sampleResponse,
+  cascadedPoleRiseTime,
   type ResponseType,
 } from '../filters';
 
@@ -277,5 +278,59 @@ describe('dB conversion', () => {
 
   it('floors rather than returning -Infinity', () => {
     expect(toDb(0)).toBe(-300);
+  });
+});
+
+describe('cascaded identical poles', () => {
+  it('reduces to the single-pole product for n = 1', () => {
+    // ln((1-lo)/(1-hi)) / 2pi, which is what riseTimeBandwidthProduct returns for
+    // type 'rc'. One function solved numerically, one in closed form, same answer.
+    for (const [lo, hi] of [
+      [0.1, 0.9],
+      [0.2, 0.8],
+      [0.05, 0.95],
+    ] as const) {
+      const closed = riseTimeBandwidthProduct({ type: 'rc', bw: 1 }, lo, hi);
+      expect(cascadedPoleRiseTime(1, 1, lo, hi)).toBeCloseTo(closed, 12);
+    }
+  });
+
+  it('scales inversely with the bandwidth of each pole', () => {
+    expect(cascadedPoleRiseTime(3, 2e9)).toBeCloseTo(cascadedPoleRiseTime(3, 1e9) / 2, 21);
+  });
+
+  it('matches the closed-form solution for two poles', () => {
+    // s_2(x) = 1 - (1+x)e^{-x}. Solving (1+x)e^{-x} = 0.9 and = 0.1 gives
+    // x = 0.5318116084 and x = 3.8897201699, a span of 3.3579085615 time
+    // constants, computed to 30 digits and rounded here.
+    const tr = cascadedPoleRiseTime(2, 1);
+    expect(tr).toBeCloseTo(3.3579085615 / (2 * Math.PI), 10);
+    expect(tr).toBeCloseTo(0.5344277460097901, 12);
+  });
+
+  it('shows that the quadrature rule underestimates a cascade of poles', () => {
+    // The RSS rule is exact only for Gaussians. Two identical poles are the
+    // smallest counterexample, and the error is in the optimistic direction: the
+    // estimate says the edge is faster than it is.
+    const one = cascadedPoleRiseTime(1, 1);
+    const two = cascadedPoleRiseTime(2, 1);
+    const rss = Math.SQRT2 * one;
+    expect(rss).toBeLessThan(two);
+    expect((rss - two) / two).toBeCloseTo(-0.0746189957, 9);
+  });
+
+  it('grows monotonically with the number of poles', () => {
+    let previous = 0;
+    for (const n of [1, 2, 3, 5, 8, 16]) {
+      const tr = cascadedPoleRiseTime(n, 1);
+      expect(tr).toBeGreaterThan(previous);
+      previous = tr;
+    }
+  });
+
+  it('rejects levels that are not a proper pair', () => {
+    expect(() => cascadedPoleRiseTime(2, 1, 0.9, 0.1)).toThrow(/levels/);
+    expect(() => cascadedPoleRiseTime(2, 1, 0, 0.9)).toThrow(/levels/);
+    expect(cascadedPoleRiseTime(2, 0)).toBeNaN();
   });
 });

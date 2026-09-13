@@ -4,7 +4,7 @@ What is done, what is stubbed, what is known to be inaccurate, and what is waiti
 on an answer.
 
 Updated at the end of each milestone. Last updated: **2026-09-13**, at the
-Milestone 1 gate.
+Milestone 2 gate.
 
 ---
 
@@ -12,8 +12,8 @@ Milestone 1 gate.
 
 | #   | Milestone | Covers                             | State                  |
 | --- | --------- | ---------------------------------- | ---------------------- |
-| 1   | Core      | DSP, plots, state, content, shell  | **Complete - at gate** |
-| 2   | M1 + M2   | Harmonics; ideal edge to real edge | Not started            |
+| 1   | Core      | DSP, plots, state, content, shell  | Complete               |
+| 2   | M1 + M2   | Harmonics; ideal edge to real edge | **Complete - at gate** |
 | 3   | M3        | Transmission lines and reflections | Not started            |
 | 4   | M4        | Loss                               | Not started            |
 | 5   | M5        | ISI, eye diagrams, jitter          | Not started            |
@@ -27,6 +27,68 @@ Milestone 1 gate.
 Modules are built in the order above, not in numeric order: equalization (M7) comes
 before crosstalk (M6) because the eye-closure machinery it needs is built in
 Milestone 5.
+
+---
+
+## Milestone 2 — done
+
+**1572 tests across 35 files, all passing.** `npm run verify` is clean end to end.
+Milestone 2 added 66 tests in two new files and the first two entries in `BODIES`.
+
+| Layer          | Tests | Change |
+| -------------- | ----- | ------ |
+| `src/content`  | 755   | —      |
+| `src/dsp`      | 275   | +22    |
+| `src/plots`    | 265   | —      |
+| `src/state`    | 137   | —      |
+| `src/dsp/jobs` | 64    | —      |
+| `src/modules`  | 44    | +44    |
+| `src/workers`  | 27    | —      |
+| `src/design`   | 5     | —      |
+
+### M1 — Building a square wave from nothing
+
+`src/modules/m1/M1.tsx`, with its two figures in `src/modules/m1/plots.ts`.
+
+The argument: a transmitter cannot send a square wave, because a square wave is an
+infinite sum; what left the pin was the first few terms of it, and every impairment
+later in the course is a statement about which terms survived. The synthesis figure
+shows the partial sum converging in the mean and never at the edge. The spectrum
+figure shows where the terms actually land in frequency, which is what makes "loss at
+Nyquist" a sentence about the picture rather than a number off a datasheet.
+
+Displayed and implemented: the square-wave series (§2.1), the Wilbraham–Gibbs limit
+as (2/π)·Si(π) (§2.2), the pulse coefficients as a sampled sinc (§2.5), the duty
+relation |a₂/a₁| = |cos πd| and its inverse (§2.5), and the knee frequency (§3.1).
+The duty-error table is evaluated through `secondHarmonicRatio` rather than quoted,
+so it cannot disagree with the metric beside the plot: a 1 % duty error puts the
+second harmonic at −30.06 dBc.
+
+### M2 — From ideal edge to real edge
+
+`src/modules/m2/M2.tsx`, with its two figures in `src/modules/m2/plots.ts`.
+
+The argument: band-limiting is a filter, not a defect. A step through one pole gives
+t_r(10–90 %) = ln9/(2π·BW) = 0.3497/BW, which is where the remembered 0.35 comes
+from, and it is exact for a single pole at 10–90 % and for nothing else. The edge
+figure draws all four threshold levels on one curve, so the two rise-time conventions
+are visibly two readings of the same edge. The damping figure shows a series RLC at
+three dampings against a first-order reference, which is where overshoot and ringing
+come from when nothing has been truncated.
+
+Both tables in the body are computed live — `riseTimeBandwidthProduct` across five
+shapes at both conventions, and `cascadedPoleRiseTime` against the quadrature rule —
+so no number in the prose is a remembered one.
+
+### New DSP — `cascadedPoleRiseTime`
+
+M2 claims that rise times added in quadrature are optimistic for anything but a
+Gaussian. Rather than quoting a remembered percentage, `src/dsp/filters.ts` now
+solves the rise time of n identical cascaded poles from the Erlang step response by
+bisection. It reduces to the closed form of §3.2 at n = 1, asserted at three level
+pairs, and it produces the counterexample the module prints: two identical poles give
+0.5344277/BW against a quadrature estimate of 0.4945493/BW, which is 7.46 % low.
+PHYSICS.md §3.7 carries the derivation and the 30-digit values.
 
 ---
 
@@ -234,9 +296,9 @@ emits relative asset paths, confirmed against `vite preview`.
 
 ## Stubbed, and honestly so
 
-- **Every module body.** `ModulePage`'s `BODIES` table is empty; all eleven modules
-  render `Placeholder`, which names the milestone the module is waiting on. The
-  panels beside them are live and the controls really write to the Scenario.
+- **Nine of the eleven module bodies.** `BODIES` holds `m1` and `m2`; M3 through M11
+  render `Placeholder`, which names the milestone each is waiting on. The panels
+  beside them are live and the controls really write to the Scenario.
 - **`src/sim/{channel,equalizer,eye,impairments,touchstone}` are empty.** No channel
   physics exists yet. None was invented to make the pages look finished.
 - **No direct numeric entry on a slider.** A reader who wants exactly 187.5 ps has
@@ -282,6 +344,22 @@ phase. Module 4 must say this on screen when the construction is used.
 The RLC model is lumped, so it is valid only while the propagation delay across the
 structure is small compared with the rise time. Outside that range it understates
 what happens, and Module 3's transmission-line treatment is the correct model.
+
+### 6. Job parameters are not in the permalink
+
+M1's harmonic count and waveform choice, and M2's record length and scope toggle, are
+module-local state. A permalink therefore restores the link — source, channel, scope,
+pattern — but not which figure settings the reader had. Sharing "look at this at 99
+harmonics" needs a sentence alongside the link. This follows directly from the
+decision recorded below, and is the price of it; a `TryThis` that needed to set one
+of these would have to promote it to the Scenario first.
+
+### 7. The `linear` edge shape is modelled as a Bessel
+
+A straight ramp has no transfer function, so `edgeResponseOf` maps the Scenario's
+`linear` edge shape to a fourth-order Bessel — the maximally-flat-delay shape closest
+to a ramp with no overshoot. M2 says so on screen when that shape is selected, rather
+than silently renaming it in the legend.
 
 ---
 
@@ -349,6 +427,28 @@ recur silently the same way. The regenerated goldens file is byte-identical to
 the one it replaced, confirming the swap changed nothing about what the script
 produces.
 
+**A job parameter is not a Scenario field.** A Scenario field describes the _link_:
+it is Zod-validated, it travels in the permalink, and it owes a control declaration,
+a help entry and a coverage test. A job parameter describes the _experiment a module
+runs on that link_ — M1's harmonic count, M2's record length, whether the scope is in
+the path — and lives in component state beside the figure it drives. Mixing the two
+would put "how many harmonics am I currently drawing" into the description of a
+transmitter. The cost is recorded under known limitations above.
+
+**A figure's declaration is a claim, so it is tested away from the component.** Both
+module figure pairs live in a plain `.ts` file beside the `.tsx` body, because vitest
+collects `src/**/*.test.ts` in a node environment and a `.tsx` test would never be
+run at all. The specs under test are built from a real `runJob` result rather than a
+fixture: a fixture lets the figure and the job drift apart in exactly the way the
+test exists to prevent.
+
+**M2's second figure does not go through a worker.** A second-order step response is
+a closed form three exponentials wide, and a round trip through `postMessage` would
+cost more than evaluating it. It is computed inline through the same
+`rlcStepResponse` the test suite checks, so "cheap enough to do inline" does not
+become "done differently". The file header says so, so the asymmetry is not read as
+an oversight.
+
 **A control's help lives beside its declaration, not in its component.** Which is
 what lets `HelpTip` be one component rather than one per control, and what lets the
 coverage test assert that no control ships without an explanation.
@@ -415,11 +515,12 @@ letters and the mathematical minus.
 
 ## Next
 
-**Milestone 1 is at its gate.** The site builds, serves and deploys; the DSP,
-plotting, state, content and UI layers are in place and tested; no module argument
-has been written, and none has been faked.
+**Milestone 2 is at its gate.** M1 and M2 are written, wired to real jobs, and
+reachable from the site; every formula they display is implemented, and every number
+in their prose is evaluated rather than quoted. PHYSICS.md gained §2.5 and §3.7 for
+the two results they introduce.
 
-Milestone 2 is M1 (harmonics) and M2 (ideal edge to real edge) — the first two module
-bodies, the first plots wired to real jobs, and the first entries in `BODIES`.
-Nothing blocks it: the gate's three questions are closed and the physics they
-concerned is settled in code, in PHYSICS.md and here.
+Milestone 3 is M3, transmission lines and reflections — the first module that needs
+`src/sim/channel.ts`, which is still empty. It is also the point at which the lumped
+RLC of M2 stops being the right model, and the module has to say so with a picture
+rather than with a caveat.

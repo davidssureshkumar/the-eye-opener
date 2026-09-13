@@ -7,6 +7,9 @@ import {
   sineIntegral,
   kneeFrequency,
   nyquistFrequency,
+  harmonicEnvelope,
+  secondHarmonicRatio,
+  dutyFromSecondHarmonic,
   GIBBS_OVERSHOOT_OF_JUMP,
   GIBBS_OVERSHOOT_OF_AMPLITUDE,
   GIBBS_PEAK,
@@ -208,5 +211,98 @@ describe('frequency relationships', () => {
 
   it('Nyquist frequency of a 6400 MT/s link is 3.2 GHz', () => {
     expect(nyquistFrequency(6.4e9)).toBeCloseTo(3.2e9, 3);
+  });
+});
+
+describe('duty cycle from the second harmonic', () => {
+  it('agrees with the pulse coefficients it was derived from', () => {
+    // The claim is |a2|/|a1| = |cos(pi d)|. Check it against the coefficients
+    // themselves rather than against the algebra, at duties either side of 50%.
+    for (const d of [0.1, 0.25, 0.35, 0.45, 0.5, 0.55, 0.7, 0.9]) {
+      const terms = harmonics('pulse', 2, d);
+      const a1 = terms.find((t) => t.n === 1)?.amplitude ?? 0;
+      const a2 = terms.find((t) => t.n === 2)?.amplitude ?? 0;
+      expect(Math.abs(a2 / a1)).toBeCloseTo(secondHarmonicRatio(d), 12);
+    }
+  });
+
+  it('puts a null on the second harmonic at exactly 50%', () => {
+    expect(secondHarmonicRatio(0.5)).toBeCloseTo(0, 15);
+    // And `harmonics` agrees by omitting the term altogether.
+    expect(harmonics('pulse', 4, 0.5).some((t) => t.n === 2)).toBe(false);
+  });
+
+  it('inverts back to the duty that produced it, on the lower branch', () => {
+    for (const d of [0.02, 0.1, 0.25, 0.4, 0.499, 0.5]) {
+      expect(dutyFromSecondHarmonic(secondHarmonicRatio(d))).toBeCloseTo(d, 10);
+    }
+  });
+
+  it('is two-to-one: d and 1 - d are the same waveform inverted', () => {
+    expect(secondHarmonicRatio(0.3)).toBeCloseTo(secondHarmonicRatio(0.7), 12);
+    expect(dutyFromSecondHarmonic(secondHarmonicRatio(0.7))).toBeCloseTo(0.3, 10);
+  });
+
+  it('linearises to pi times the duty error near 50%, which is the bench rule', () => {
+    // 1% duty error -> second harmonic about 30 dB below the fundamental.
+    const r = secondHarmonicRatio(0.51);
+    // The exact value is sin(pi*0.01); the linearisation is off by 5e-6 here,
+    // which is why the implementation does not use it.
+    expect(r).toBeCloseTo(Math.PI * 0.01, 4);
+    expect(20 * Math.log10(r)).toBeCloseTo(-30.06, 1);
+  });
+
+  it('clamps a ratio outside [0, 1] rather than returning NaN', () => {
+    expect(dutyFromSecondHarmonic(1.4)).toBe(0);
+    expect(dutyFromSecondHarmonic(-0.2)).toBeCloseTo(0.5, 12);
+    expect(dutyFromSecondHarmonic(NaN)).toBeNaN();
+  });
+});
+
+describe('harmonic envelope', () => {
+  const shapes = [
+    { shape: 'square' as const, duty: 0.5 },
+    { shape: 'triangle' as const, duty: 0.5 },
+    { shape: 'sawtooth' as const, duty: 0.5 },
+    { shape: 'pulse' as const, duty: 0.3 },
+    { shape: 'pulse' as const, duty: 0.5 },
+  ];
+
+  it.each(shapes)('passes through every term of $shape (duty $duty)', ({ shape, duty }) => {
+    // The envelope is only worth drawing if it is the same algebra as the terms.
+    // Comparing it against them is the whole check.
+    for (const term of harmonics(shape, 21, duty)) {
+      if (term.n === 0) continue;
+      expect(harmonicEnvelope(shape, term.n, duty)).toBeCloseTo(Math.abs(term.amplitude), 12);
+    }
+  });
+
+  it('bounds the harmonics a square wave does not have', () => {
+    // No even term exists, and the envelope sits strictly above zero there.
+    expect(harmonics('square', 8).some((t) => t.n === 4)).toBe(false);
+    expect(harmonicEnvelope('square', 4)).toBeGreaterThan(0);
+  });
+
+  it('rolls off at -20 dB/decade for a square wave and -40 for a triangle', () => {
+    const slope = (shape: 'square' | 'triangle'): number =>
+      (20 * Math.log10(harmonicEnvelope(shape, 10) / harmonicEnvelope(shape, 1))) / Math.log10(10);
+    expect(slope('square')).toBeCloseTo(-20, 9);
+    expect(slope('triangle')).toBeCloseTo(-40, 9);
+  });
+
+  it('nulls a pulse envelope wherever nu*d is a whole number', () => {
+    expect(harmonicEnvelope('pulse', 4, 0.25)).toBeCloseTo(0, 12);
+    expect(harmonicEnvelope('pulse', 2, 0.5)).toBeCloseTo(0, 12);
+    expect(harmonicEnvelope('pulse', 3, 0.25)).toBeGreaterThan(0);
+  });
+
+  it('is finite at DC for a pulse and unbounded for the rest', () => {
+    expect(harmonicEnvelope('pulse', 0, 0.25)).toBeCloseTo(1, 12);
+    expect(harmonicEnvelope('square', 0)).toBe(Infinity);
+  });
+
+  it('rejects a negative or non-finite frequency rather than returning a number', () => {
+    expect(harmonicEnvelope('square', -1)).toBeNaN();
+    expect(harmonicEnvelope('square', NaN)).toBeNaN();
   });
 });

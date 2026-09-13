@@ -16,18 +16,24 @@ static files.
 
 ## Status
 
-**Milestone 1 of 11 — core layers, complete and at review.** The DSP, plotting,
-state, content, design and UI layers are implemented and tested, and `npm run dev`
-serves the site: the shell, the router, the glossary and every instrument panel are
-live, and moving a control really does write to the Scenario and update the URL.
+**Milestone 2 of 11 — the first two modules, complete and at review.** The core
+layers were Milestone 1; Milestone 2 is the first teaching. **M1** builds a square
+wave out of harmonics and shows where they land in frequency. **M2** replaces the
+truncation of M1 with a filter and works out what a rise time actually is, including
+the conditions under which 0.35/BW is true.
 
-What is **not** there yet is the teaching. No module body is written; all eleven
-render a placeholder that says which milestone it is waiting on, beside a working
-panel. Nothing plausible-sounding has been written to fill the gap — that is the
-failure mode this project is written against.
+What is **not** there yet is M3 through M11. They render a placeholder that names the
+milestone each is waiting on, beside a working instrument panel. Nothing
+plausible-sounding has been written to fill the gap — that is the failure mode this
+project is written against.
+
+Every formula either module displays is implemented in `src/dsp/` and cited to a
+section of [PHYSICS.md](PHYSICS.md), and every number in their prose is evaluated at
+render time rather than quoted, so a table in the text cannot disagree with the
+metric beside the plot.
 
 ```
-1506 tests, 33 files, all passing
+1572 tests, 35 files, all passing
 ```
 
 See [PROGRESS.md](PROGRESS.md) for what is done, what is stubbed, and the known
@@ -101,7 +107,7 @@ src/
   content/   Module list, glossary, per-control help, bench tips.
   design/    Design tokens: the one place a colour or a font size is defined.
   ui/        The components a module is written out of, and the instrument panel.
-  modules/   Which panels each module offers; the placeholder for unwritten ones.
+  modules/   The written module bodies, and which panels each module offers.
   app/       Router, header, home page, glossary page, error boundary.
   sim/       Channel physics. Empty until Milestone 3 — deliberately.
 ```
@@ -301,7 +307,7 @@ summary beside every plot so the numbers are available without reading pixels.
 ## Testing
 
 ```bash
-npm test                # everything - 1506 tests across 33 files
+npm test                # everything - 1572 tests across 35 files
 npx vitest run src/dsp  # one layer
 npx vitest              # watch mode
 ```

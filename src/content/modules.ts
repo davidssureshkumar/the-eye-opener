@@ -39,7 +39,7 @@ export const MODULES: ModuleMeta[] = [
     summary:
       'Add sine waves one harmonic at a time and watch an edge appear. Gibbs overshoot, the sinc envelope of a pulse train, and the knee frequency that decides how much bandwidth an edge really needs.',
     milestone: 2,
-    status: 'planned',
+    status: 'done',
   },
   {
     id: 'm2',
@@ -49,7 +49,7 @@ export const MODULES: ModuleMeta[] = [
     summary:
       'Bandwidth limiting as a filter, not as a defect. First-order RC, second-order RLC ringing and damping, and the 0.35/BW rule with the conditions under which it is true.',
     milestone: 2,
-    status: 'planned',
+    status: 'done',
   },
   {
     id: 'm3',

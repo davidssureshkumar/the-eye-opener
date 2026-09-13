@@ -160,6 +160,56 @@ to 1/N, so its energy vanishes. Showing both numbers together is what separates
 never does. Convergence in L² does not imply uniform convergence, and this is the
 standard counterexample.
 
+### 2.5 The coefficient envelope and duty cycle from the second harmonic
+
+The pulse coefficients of §2.1 can be written as a sampled sinc:
+
+```
+aₙ = (4/(nπ))·sin(nπd) = 4d·sinc(nd),      sinc(x) ≡ sin(πx)/(πx)
+```
+
+`harmonicEnvelope(shape, nu, duty)` evaluates the same expression at **continuous**
+nu rather than integer n, which is what the dashed curve on Module 1's spectrum plot
+is. It is the magnitude only; the phase convention of §2.1 is irrelevant to a
+picture of levels.
+
+**Nulls.** |4d·sinc(nd)| = 0 wherever nd is a non-zero integer. At d = 1/2 that is
+every even n, which is the same statement as the half-wave symmetry
+x(t + T/2) = −x(t) that removes the even harmonics of a square wave. The two facts
+are one fact.
+
+**Duty cycle from the ratio of the first two harmonics.** Taking the ratio and using
+sin 2θ = 2 sin θ cos θ:
+
+```
+|a₂/a₁| = |(4/2π)·sin 2πd| / |(4/π)·sin πd|
+        = |2 sin πd cos πd| / |2 sin πd|
+        = |cos πd|
+```
+
+which inverts, on the branch d ≤ 1/2, to
+
+```
+d = (1/π)·arccos |a₂/a₁|
+```
+
+Implemented as `secondHarmonicRatio(duty)` and `dutyFromSecondHarmonic(ratio)`.
+This is **exact**, not a linearisation: the familiar small-error form π·|d − 1/2| is
+already wrong in the sixth decimal at a 1 % duty error, and the exact form costs one
+arccos.
+
+**Valid for:** an ideal pulse train. Finite rise time does not shift the null
+positions but does scale the whole envelope by the transform of the edge, so on a
+real clock the recovered duty is biased by whatever asymmetry exists between the
+rising and falling edges. The sin θ factor cancels only because the two harmonics
+come from the same waveform, so the measurement is independent of amplitude, probe
+attenuation and vertical gain — but not of edge asymmetry.
+
+**Ambiguity.** d and 1 − d give the same |a₂/a₁|, because a 40 % pulse is a 60 %
+pulse inverted. The DC term 2d − 1 resolves it. The site reports
+min(d, 1 − d) as the target for that reason rather than pretending the ambiguity is
+not there.
+
 ---
 
 ## 3. Edges, bandwidth and the knee
@@ -343,6 +393,55 @@ compression, and rise and fall are the same shape. A slew-limited driver does no
 obey this: its edge rate is set by a current and a capacitance, so its rise time does
 **not** scale with amplitude the way these edges do. Module 2 says so on screen where
 the distinction matters.
+
+### 3.7 Rise times in series: the quadrature rule and its error
+
+The standard estimate for two or more band limits in cascade is
+
+```
+t_r,total ≈ sqrt( t_r,1² + t_r,2² + … )
+```
+
+**Exact for Gaussians.** Convolving Gaussians adds their variances, and the rise
+time of a Gaussian step response is proportional to σ (§3.2), so the sum in
+quadrature is the exact answer for a cascade of Gaussian responses and for nothing
+else. For every other shape it is an approximation, and the error is one-sided.
+
+**The counterexample, computed rather than asserted.** For n identical single poles
+the cascade transfer function is 1/(1 + s/ω)ⁿ, whose step response is the Erlang
+distribution function
+
+```
+s_n(x) = 1 − e^(−x) · Σ_{k=0}^{n−1} x^k / k!,      x = t/τ,  τ = 1/(2π·BW_pole)
+```
+
+`cascadedPoleRiseTime(n, bwPole, lo, hi)` solves s_n(x) = lo and s_n(x) = hi by
+bisection — s_n is strictly increasing on x > 0, so bisection is safe and has no
+starting-point sensitivity — and returns (x_hi − x_lo)·τ. At n = 1 it reduces to
+the closed form ln((1−lo)/(1−hi))/2π of §3.2, which is asserted in the test suite at
+three different level pairs.
+
+For n = 2 at 10–90 %, computed to 30 digits with mpmath and reproduced by the
+implementation to 16:
+
+| Quantity                         | Value (units of 1/BW_pole) |
+| -------------------------------- | -------------------------- |
+| x₁₀ (time constants)             | 0.5318116083896120         |
+| x₉₀ (time constants)             | 3.8897201698674291         |
+| True t_r of the cascade          | 0.5344277460097901         |
+| One pole alone                   | 0.3496991525660598         |
+| Quadrature estimate, √2 × above  | 0.4945492843092999         |
+| Fractional error of the estimate | −0.0746189957355989        |
+
+So the rule is **7.46 % low** for two identical poles, and the error grows with n.
+Low means optimistic: it reports a faster edge than the cascade actually produces,
+which is the direction that does not warn you on a margin calculation.
+
+**Valid for:** first-order estimates only, and best when one element dominates. It
+has no standing as a correction to apply to a measurement — a rise time read through
+an instrument should be treated as a measurement of the cascade unless the
+instrument's response is known well enough to deconvolve, which is Module 10's
+subject.
 
 ---
 

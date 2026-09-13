@@ -290,3 +290,87 @@ export function rmsError(y: ArrayLike<number>, ideal: ArrayLike<number>): number
   }
   return Math.sqrt(acc / n);
 }
+
+/**
+ * The coefficient magnitude of `harmonics`, read as a continuous function of
+ * frequency rather than only at the integers.
+ *
+ * This is the *envelope* a stem plot is drawn against, and it is the same algebra
+ * as §2.1 with n replaced by a real ν = f / f₀:
+ *
+ *   Square    4/(πν)
+ *   Triangle  8/(π²ν²)
+ *   Sawtooth  2/(πν)
+ *   Pulse     |4·sin(πνd)/(πν)|
+ *
+ * At an integer ν where the series has a term, this equals that term's magnitude
+ * exactly, and the test suite asserts it. Where the series has no term - the even
+ * harmonics of a square wave, the nulls of a pulse - the envelope is an upper bound
+ * that the harmonics touch but do not reach, which is precisely what makes it worth
+ * drawing: a square wave's missing even harmonics and a 50% pulse's spectral nulls
+ * are the same fact, and the envelope is where you can see that they are.
+ *
+ * Returns a magnitude, never a signed coefficient: the triangle's alternating sign
+ * is a phase, and a phase has no place on an amplitude envelope.
+ *
+ * @param nu frequency as a multiple of the fundamental. Zero returns the limit of
+ *        the envelope at DC, which is 0 for the shapes with no DC term and 4d for
+ *        a pulse - not the DC coefficient 2d−1, which is a different quantity.
+ */
+export function harmonicEnvelope(shape: WaveShape, nu: number, duty = 0.5): number {
+  if (!Number.isFinite(nu) || nu < 0) return NaN;
+  const pi = Math.PI;
+  switch (shape) {
+    case 'square':
+      return nu === 0 ? Infinity : 4 / (pi * nu);
+    case 'triangle':
+      return nu === 0 ? Infinity : 8 / (pi * pi * nu * nu);
+    case 'sawtooth':
+      return nu === 0 ? Infinity : 2 / (pi * nu);
+    case 'pulse':
+      // sin(x)/x -> 1, so the envelope is finite at DC even though 1/nu is not.
+      return nu === 0 ? 4 * duty : Math.abs((4 * Math.sin(pi * nu * duty)) / (pi * nu));
+  }
+}
+
+/**
+ * Second-harmonic level of a rectangular pulse train, relative to its fundamental.
+ *
+ * From the pulse coefficients of `harmonics`, aₙ = (4/(nπ))·sin(nπd):
+ *
+ *   |a₂| / |a₁|  =  |(2/π)·sin(2πd)| / |(4/π)·sin(πd)|
+ *                =  |2·sin(πd)·cos(πd)| / |2·sin(πd)|
+ *                =  |cos(πd)|
+ *
+ * Exact, not a small-signal approximation, and independent of amplitude - which is
+ * what makes it useful on an instrument, where the absolute level is whatever the
+ * attenuator happened to be set to. A perfect 50% duty cycle puts a null on the
+ * second harmonic, and every departure from 50% fills it back in.
+ *
+ * @param duty duty cycle as a fraction, 0 to 1.
+ */
+export function secondHarmonicRatio(duty: number): number {
+  return Math.abs(Math.cos(Math.PI * duty));
+}
+
+/**
+ * Duty cycle implied by a measured second-harmonic ratio. The inverse of
+ * `secondHarmonicRatio`, and the reason that function is worth having.
+ *
+ * The mapping is two-to-one: a mark of d and a mark of 1 − d put the same level on
+ * the second harmonic, because they are the same waveform inverted. This returns
+ * the root in [0, 0.5]; the caller decides from the DC level, or from looking at
+ * the trace, which of the two it has.
+ *
+ * Near d = 0.5 the relation linearises to |a₂/a₁| ≈ π·|d − 0.5|, so a second
+ * harmonic 30 dB below the fundamental is about a 1% duty error. The exact form is
+ * used here rather than that approximation, because it costs one `Math.acos`.
+ *
+ * @param ratio |a₂| / |a₁|, a magnitude ratio and not a dB value. Clamped to [0, 1]:
+ *        a measured ratio above 1 is not a duty cycle at all, it is a sign that
+ *        something other than a rectangular pulse train is being measured.
+ */
+export function dutyFromSecondHarmonic(ratio: number): number {
+  if (!Number.isFinite(ratio)) return NaN;
+  return Math.acos(Math.min(1, Math.max(0, ratio))) / Math.PI;
+}
