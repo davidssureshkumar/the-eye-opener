@@ -270,6 +270,13 @@ export function qFunction(x: number): number {
  * tail; the argument is the specified BER itself, not BER/2. That convention is
  * what reproduces the multiplier table everyone quotes at the bench:
  *   1e-9 -> 11.996, 1e-10 -> 12.723, 1e-12 -> 14.069, 1e-16 -> 16.444.
+ *
+ * Settled at the Milestone 1 gate. Some houses use `-2 * invNormCdf(ber / 2)`
+ * instead, which is always the more pessimistic of the two: +1.86% at 1e-9,
+ * +1.37% at 1e-12, +1.01% at 1e-16. If that is the house convention, this line is
+ * the only change - but note the difference is far below the error in the
+ * extrapolation itself, which is set by whether the "bounded" jitter really is
+ * bounded, not by which argument the Q-inverse takes.
  */
 export function dualDiracN(ber: number): number {
   if (ber <= 0 || ber >= 1) return NaN;

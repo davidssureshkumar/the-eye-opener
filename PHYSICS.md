@@ -111,9 +111,13 @@ for a square wave of amplitude 1 (a jump discontinuity of 2). Therefore:
 The familiar "about 9 %" refers to the **jump**. Both constants are exported and the
 test suite re-derives them from the sine integral rather than trusting the literals.
 
-> **Open item for review.** The project brief states this overshoot as 8.93 %. The
-> exact Wilbraham–Gibbs value is 8.9490 % of the jump. The code and this document
-> use the exact value. Flagged for the Milestone 1 gate.
+> **Resolved at the Milestone 1 gate.** The brief states 8.93 %; the exact
+> Wilbraham–Gibbs value is 8.9490 % of the jump. The exact value stands, in code and
+> in prose. There is nothing to choose between here — 8.93 % is not a different
+> convention, it is the same constant quoted short — and a course whose first module
+> is about where the overshoot comes from cannot then print a rounded version of it.
+> `src/dsp/__tests__/fourier.test.ts` re-derives both constants from Si(π), so the
+> literals above are checked rather than trusted.
 
 ### 2.3 Sine integral
 
@@ -475,9 +479,26 @@ multiplier values quoted at the bench:
 | 10⁻¹² | 14.069 |
 | 10⁻¹⁶ | 16.444 |
 
-> **Open item for review.** Some houses define n(BER) with the argument BER/2, which
-> shifts every multiplier. The convention above is the one that reproduces the
-> familiar table. Confirm it matches house practice at the Milestone 1 gate.
+> **Resolved at the Milestone 1 gate.** The convention above stands: the argument is
+> the specified BER, and each of the two crossings is taken to contribute a tail of
+> that probability. It is the convention that reproduces the table every scope's
+> TJ@BER readout is quoted against, which is what makes a number on this site
+> comparable with a number off an instrument.
+>
+> The BER/2 variant is real, and the difference it makes is small and one-directional
+> — it is always the more pessimistic of the two:
+>
+> | BER   | n = 2·Q⁻¹(BER) | n = 2·Q⁻¹(BER/2) | difference |
+> | ----- | -------------- | ---------------- | ---------- |
+> | 10⁻⁹  | 11.9956        | 12.2188          | +1.86 %    |
+> | 10⁻¹² | 14.0690        | 14.2610          | +1.37 %    |
+> | 10⁻¹⁶ | 16.4442        | 16.6096          | +1.01 %    |
+>
+> A percent and a half on the RJ multiplier is far below the error in the
+> extrapolation itself — dual-Dirac projects a 10⁻¹² number from perhaps 10⁻⁸ of
+> measured data, and its accuracy is set by whether the bounded part is really
+> bounded, not by which argument the Q-inverse takes. If a house convention needs the
+> other form, it is one line in `dualDiracN`, and the doc comment there says so.
 
 **Assumption:** the dual-Dirac model — deterministic jitter modelled as two impulses
 separated by DJ(pk-pk), convolved with one Gaussian of width RJ_rms. It is an
@@ -682,13 +703,17 @@ decibels.
 
 ## 12. Open items
 
-Carried to the Milestone 1 review gate:
+Everything raised for the Milestone 1 gate is closed. Kept here with its resolution,
+because a decision with no record is a decision someone re-opens by accident.
 
-1. **Gibbs constant.** Brief says 8.93 %; exact value is 8.9490 % of the jump (§2.2).
-   Code and docs use the exact value.
-2. **Dual-Dirac convention.** n(BER) = 2·Q⁻¹(BER) as implemented; confirm this
-   matches house practice rather than the BER/2 variant (§6.4).
-3. **Colormap approximation.** 0.1-interval control points rather than full
-   256-entry tables (§11.4).
-4. **Clean brief.** The pasted project brief contains UTF-8 mojibake; a clean
-   `BRIEF.md` is owed so the source document is readable.
+1. **Gibbs constant — closed.** The exact 8.9490 % of the jump, not the brief's
+   rounded 8.93 %. Re-derived from Si(π) in the test suite (§2.2).
+2. **Dual-Dirac convention — closed.** n(BER) = 2·Q⁻¹(BER), the argument being the
+   specified BER. The BER/2 variant differs by 1–2 %, always pessimistic, and is
+   documented beside the implementation (§6.4).
+3. **Clean brief — closed.** `BRIEF.md` is in the repository, the pasted copy's
+   Latin-1 mis-decoding undone rather than retyped.
+4. **Colormap approximation — standing limitation, not a question.** 0.1-interval
+   control points rather than full 256-entry tables (§11.4). It is recorded in
+   PROGRESS.md under known approximations, where it belongs: no plot on this site
+   reads a colour as a value, and it would matter if one did.

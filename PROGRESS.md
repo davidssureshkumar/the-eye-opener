@@ -372,28 +372,38 @@ everywhere else.
 
 ---
 
-## Open questions
+## Open questions — none
 
-Raised at the Milestone 1 gate; work continues under the stated assumption until
-answered.
+All three raised at the Milestone 1 gate are closed. The resolutions are kept rather
+than deleted, because a decision with no record is one somebody re-opens by accident.
 
-### 1. Gibbs overshoot figure
+### 1. Gibbs overshoot figure — **closed: the exact value**
 
 The brief states 8.93 %. The exact Wilbraham–Gibbs value is **8.9490 %** of the jump
 discontinuity — (2/π)·Si(π) − 1, halved for the jump reference.
 
-_Assumed:_ the exact value, in both code and prose. Both constants are exported and
-the test suite re-derives them from the sine integral.
+These are not two conventions; they are one constant, quoted long and quoted short.
+The exact value stands in code and prose. `GIBBS_OVERSHOOT_OF_JUMP` and
+`GIBBS_OVERSHOOT_OF_AMPLITUDE` are both exported and the test suite re-derives them
+from the sine integral, so neither literal is trusted. M1's whole argument is where
+the overshoot comes from; printing a rounded version of it there would undercut the
+module.
 
-### 2. Dual-Dirac convention
+### 2. Dual-Dirac convention — **closed: n(BER) = 2·Q⁻¹(BER)**
 
-`dualDiracN` implements n(BER) = 2·Q⁻¹(BER), which reproduces the familiar bench
-table (1e-12 → 14.069). Some houses use the BER/2 argument instead, which shifts
-every multiplier.
+The argument is the specified BER, and each of the two crossings contributes a tail
+of that probability. This is the form that reproduces the table a scope's TJ@BER
+readout is quoted against (1e-12 → 14.069), which is what lets a number on this site
+be compared with a number off an instrument.
 
-_Assumed:_ the 2·Q⁻¹(BER) form. Confirm it matches house practice.
+The BER/2 variant is real and always slightly more pessimistic: +1.86 % at 1e-9,
++1.37 % at 1e-12, +1.01 % at 1e-16. That is well below the uncertainty in the
+extrapolation itself — dual-Dirac projects 10⁻¹² from perhaps 10⁻⁸ of measured data,
+and its accuracy turns on whether the bounded mechanism is genuinely bounded, not on
+which argument the Q-inverse takes. Switching is one line in `dualDiracN`, and its
+doc comment says which line and what it costs.
 
-### 3. Clean brief — **resolved**
+### 3. Clean brief — **closed**
 
 `BRIEF.md` is now in the repository. The pasted copy's UTF-8 had been decoded as
 Latin-1 (em dash as `â`), which is exactly invertible, so the file is the brief
@@ -411,6 +421,5 @@ has been written, and none has been faked.
 
 Milestone 2 is M1 (harmonics) and M2 (ideal edge to real edge) — the first two module
 bodies, the first plots wired to real jobs, and the first entries in `BODIES`.
-Waiting on review, and on the two open questions above: the Gibbs figure and the
-dual-Dirac convention. Work continues under the stated assumption for each if the
-answer comes later.
+Nothing blocks it: the gate's three questions are closed and the physics they
+concerned is settled in code, in PHYSICS.md and here.
