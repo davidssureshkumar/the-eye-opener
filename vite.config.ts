@@ -4,7 +4,7 @@ import { fileURLToPath, URL } from 'node:url';
 
 // base: './' keeps the build portable to GitHub Pages project sites, Netlify,
 // Vercel, or any S3 subpath without knowing the deploy prefix at build time.
-// Deep links work because routing is hash-based (see src/app/router.tsx).
+// Deep links work because routing is hash-based (see src/state/store.ts).
 export default defineConfig({
   base: './',
   plugins: [react()],

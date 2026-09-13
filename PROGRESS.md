@@ -248,6 +248,26 @@ silently breaking every link ever shared. A round-trip test catches neither, bec
 it only ever compares the codec with itself. `src/state/__tests__/permalinks.test.ts`
 pins both halves and says which is which in its header.
 
+**`react-router-dom` is dropped.** It was an unused dependency: hash routing has
+been implemented directly against `window.location.hash` in `src/state/store.ts`
+from the start, and nothing ever imported the package. This was open question 3
+below; it is resolved now rather than left open, because a `npm audit` on the
+unrelated vitest chain also flagged an advisory against the installed
+`react-router-dom` range, which is a concrete cost an unused dependency was
+imposing on every future audit. `vite.config.ts`'s comment pointing at a
+`src/app/router.tsx` that was never written is corrected to point at
+`src/state/store.ts` instead.
+
+**`vite-node` was never a real dependency.** `npm run goldens` invoked it without
+declaring it in `package.json` — it happened to be resolvable because vitest 2.x
+depended on it internally and npm hoisted the binary. Vitest 4 dropped that
+dependency, and the script broke on the next routine `npm install` with no
+warning at commit time. Replaced with `tsx`, a devDependency in its own right
+with no coupling to Vite's release cadence, so this class of breakage cannot
+recur silently the same way. The regenerated goldens file is byte-identical to
+the one it replaced, confirming the swap changed nothing about what the script
+produces.
+
 ---
 
 ## Open questions
@@ -271,20 +291,7 @@ every multiplier.
 
 _Assumed:_ the 2·Q⁻¹(BER) form. Confirm it matches house practice.
 
-### 3. `react-router-dom`
-
-`package.json` depends on `react-router-dom@^6.28.0` and `vite.config.ts` has a
-comment referencing `src/app/router.tsx`, but hash routing is already implemented
-directly in `src/state/store.ts` against `window.location.hash` and works.
-
-_Options:_ drop the dependency and fix the stale comment (recommended — it is one
-fewer dependency and the routing is twenty lines), or rebuild the shell on
-react-router.
-
-_Assumed until answered:_ the existing hash routing stays; the dependency is left in
-place so nothing is removed without a decision.
-
-### 4. Clean brief
+### 3. Clean brief
 
 The pasted project brief contains UTF-8 mojibake (em-dashes rendered as `â`). A
 clean `BRIEF.md` is owed so the governing document is readable in the repository.
@@ -294,5 +301,5 @@ clean `BRIEF.md` is owed so the governing document is readable in the repository
 ## Next
 
 Finish the Milestone 1 shell and entry point and add the Pages workflow, then **stop
-for review** before starting Milestone 2. The four open questions above want answers
-at that gate.
+for review** before starting Milestone 2. The three open questions above want
+answers at that gate.
