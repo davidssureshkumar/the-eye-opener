@@ -55,15 +55,12 @@ jobs:
       - name: Test
         run: npm run test -- --reporter=verbose
 
-      # The app shell does not exist yet, so there is nothing for Vite to build
-      # from. This step starts running by itself the moment index.html lands,
-      # which is the point of writing it as a condition rather than a TODO.
+      # The shell landed in Milestone 1, so this is unconditional now: a commit
+      # that typechecks but does not bundle still breaks the deployed site.
       - name: Build
-        if: ${{ hashFiles('index.html') != '' }}
         run: npx vite build
 
       - name: Upload build output
-        if: ${{ hashFiles('index.html') != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: site

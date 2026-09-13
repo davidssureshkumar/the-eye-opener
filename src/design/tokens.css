@@ -1,0 +1,88 @@
+/*
+ * Custom-property mirror of src/design/tokens.ts.
+ *
+ * Two consumers need the same values and cannot share a module: TypeScript reads
+ * tokens.ts (Tailwind's config, every canvas stroke), and hand-written CSS reads
+ * these. Rather than let CSS invent a second palette, every token is restated here
+ * verbatim and src/design/__tests__/tokens-css.test.ts fails if a value, a name or
+ * a count differs from the TypeScript source. Adding a token to tokens.ts without
+ * adding it here is a test failure, not a silent divergence.
+ *
+ * Naming, so the test can generate the expected keys rather than hard-code them:
+ *   surface, semantic, geometry  kebab-cased key          --ink-900, --text-hi
+ *   signal                       key verbatim             --ch1
+ *   signalMuted                  key + '-dim'             --ch1-dim
+ *   fontSize                     'fs-' + key              --fs-body
+ *   space                        'space-' + array index   --space-4
+ *   font                         'font-' + key            --font-sans
+ *
+ * Dark only, by decision: there is no light block and no media query. An
+ * oscilloscope screen is dark, the signal palette is calibrated against a near-black
+ * ground, and a light theme would need a second palette nobody would keep correct.
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* surface */
+  --ink-900: #0b0e12;
+  --ink-800: #12161c;
+  --ink-700: #1c232c;
+  --rule: #2a343f;
+  --text-hi: #e6edf3;
+  --text-lo: #8b98a5;
+
+  /* signal */
+  --ch1: #3ddc97;
+  --ch2: #f2c14e;
+  --ch3: #5aa9e6;
+  --ch4: #e5646e;
+
+  /* signalMuted */
+  --ch1-dim: #1e6e4c;
+  --ch2-dim: #7a6227;
+  --ch3-dim: #2d5673;
+  --ch4-dim: #733237;
+
+  /* semantic */
+  --ideal: #3ddc97;
+  --measured: #f2c14e;
+  --equalized: #5aa9e6;
+  --error: #e5646e;
+  --pass: #3ddc97;
+  --marginal: #f2c14e;
+  --fail: #e5646e;
+  --cursor: #e6edf3;
+  --mask: #e5646e;
+  --marker: #5aa9e6;
+
+  /* fontSize */
+  --fs-tick: 11px;
+  --fs-micro: 12px;
+  --fs-readout: 13px;
+  --fs-body: 15px;
+  --fs-lead: 18px;
+  --fs-h2: 24px;
+  --fs-h1: 32px;
+
+  /* space */
+  --space-0: 0px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+
+  /* geometry */
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --hairline: 1px;
+  --panel-width: 340px;
+
+  /* font */
+  --font-sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}

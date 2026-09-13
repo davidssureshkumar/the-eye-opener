@@ -3,26 +3,26 @@
 What is done, what is stubbed, what is known to be inaccurate, and what is waiting
 on an answer.
 
-Updated at the end of each milestone. Last updated: **2026-09-13**, during
-Milestone 1.
+Updated at the end of each milestone. Last updated: **2026-09-13**, at the
+Milestone 1 gate.
 
 ---
 
 ## Milestone status
 
-| #   | Milestone | Covers                             | State           |
-| --- | --------- | ---------------------------------- | --------------- |
-| 1   | Core      | DSP, plots, state, content, shell  | **In progress** |
-| 2   | M1 + M2   | Harmonics; ideal edge to real edge | Not started     |
-| 3   | M3        | Transmission lines and reflections | Not started     |
-| 4   | M4        | Loss                               | Not started     |
-| 5   | M5        | ISI, eye diagrams, jitter          | Not started     |
-| 6   | M7        | Equalization                       | Not started     |
-| 7   | M6        | Crosstalk, noise, PDN              | Not started     |
-| 8   | M8        | DDR5 / LPDDR5 / HBM                | Not started     |
-| 9   | M9 + M10  | Wireless view; lab measurement     | Not started     |
-| 10  | M11       | Sandbox                            | Not started     |
-| 11  | Polish    | Accessibility, performance, docs   | Not started     |
+| #   | Milestone | Covers                             | State                  |
+| --- | --------- | ---------------------------------- | ---------------------- |
+| 1   | Core      | DSP, plots, state, content, shell  | **Complete - at gate** |
+| 2   | M1 + M2   | Harmonics; ideal edge to real edge | Not started            |
+| 3   | M3        | Transmission lines and reflections | Not started            |
+| 4   | M4        | Loss                               | Not started            |
+| 5   | M5        | ISI, eye diagrams, jitter          | Not started            |
+| 6   | M7        | Equalization                       | Not started            |
+| 7   | M6        | Crosstalk, noise, PDN              | Not started            |
+| 8   | M8        | DDR5 / LPDDR5 / HBM                | Not started            |
+| 9   | M9 + M10  | Wireless view; lab measurement     | Not started            |
+| 10  | M11       | Sandbox                            | Not started            |
+| 11  | Polish    | Accessibility, performance, docs   | Not started            |
 
 Modules are built in the order above, not in numeric order: equalization (M7) comes
 before crosstalk (M6) because the eye-closure machinery it needs is built in
@@ -32,8 +32,9 @@ Milestone 5.
 
 ## Milestone 1 — done
 
-**1501 tests across 32 files, all passing.** `npm run verify` — format check,
-lint, typecheck, tests — is clean end to end.
+**1506 tests across 33 files, all passing.** `npm run verify` — format check,
+lint, typecheck, tests — is clean end to end, `npx vite build` bundles, and
+`npm run dev` serves the site.
 
 | Layer          | Tests |
 | -------------- | ----- |
@@ -43,6 +44,7 @@ lint, typecheck, tests — is clean end to end.
 | `src/state`    | 137   |
 | `src/dsp/jobs` | 64    |
 | `src/workers`  | 27    |
+| `src/design`   | 5     |
 
 ### DSP — `src/dsp/`
 
@@ -127,7 +129,9 @@ model, and state no limit as if it were a specification.
 
 ### Documentation
 
-`README.md` · `PHYSICS.md` · `PROGRESS.md` · `LICENSE`.
+`BRIEF.md` (the governing brief, verbatim, with the pasted copy's encoding damage
+repaired — it is in `.prettierignore` so a reformat cannot make the copy differ from
+the document it copies) · `README.md` · `PHYSICS.md` · `PROGRESS.md` · `LICENSE`.
 
 ---
 
@@ -138,30 +142,107 @@ prose someone has to remember: `fetch` and `XMLHttpRequest` are restricted globa
 (the site is fully static), and `any` and non-null assertions are errors inside
 `src/dsp/**` and `src/sim/**`. Prettier is the single formatter, with the generated
 goldens and snapshots excluded so a reformat cannot invalidate a pinned file.
-`.github/workflows/ci.yml` runs format check, lint, typecheck and tests on every
-push; the build step is gated on `hashFiles('index.html')` and switches itself on
-when the app shell lands.
+`.github/workflows/ci.yml` runs format check, lint, typecheck, tests and the Vite
+build on every push. `.github/workflows/pages.yml` deploys `dist/` to GitHub Pages
+from `main` after the same gate passes.
 
 `npm run verify` runs the same four checks locally in the same order.
 
 ---
 
-## Milestone 1 — not done
+### Design layer — `src/design/`
 
-These block the Milestone 1 gate:
+`tokens.ts` is the source of truth for the palette, type scale, spacing and
+geometry; every canvas stroke and the Tailwind config both read it. `tokens.css`
+restates the same values as custom properties, because hand-written CSS cannot
+import TypeScript. Two files holding one palette is exactly the arrangement that
+rots, so `__tests__/tokens-css.test.ts` **generates** the expected properties from
+the token objects and compares the set both ways: a changed value fails, a token
+added to `tokens.ts` and not to the CSS fails, and a property left behind after its
+token was deleted fails too — the case a one-directional check would miss. Colours
+are compared case-insensitively, because Prettier lowercases CSS hex and that is not
+drift.
 
-- **`src/ui/` shell.** `ModuleShell`, `InstrumentPanel`, `MetricList`, `Slider`,
-  `Callout` (notice / silicon / bench variants), `SelfCheck`, `TryThis`, and the
-  KaTeX `Math` component. None written.
-- **App entry.** `index.html`, `src/main.tsx`, the hash router wired to
-  `src/state/store.ts`, `@fontsource` imports. **Consequence: `npm run dev` does not
-  serve a usable site yet.**
-- **Global CSS.** `tokens.css` hand-mirrored from `src/design/tokens.ts`, guarded by
-  a unit test so the two cannot drift.
-- **`BRIEF.md`.** A clean UTF-8 copy of the project brief; the pasted original
-  contains mojibake.
-- **`.github/workflows/pages.yml`.** `ci.yml` is in place; the Pages deployment
-  workflow is not, and has nothing to deploy until `index.html` exists.
+`global.css` carries the base layer: dark ground, `tabular-nums` on every readout so
+a changing number does not shiver, one `:focus-visible` ring for the whole site, a
+`prefers-reduced-motion` block and the `.prose-column` measure.
+
+### UI — `src/ui/`
+
+The instrument panel is **declaration-driven**. `src/content/controls.ts` says which
+affordance and over what range, `src/content/help.ts` says what it is called and what
+it does, and the Scenario says what it currently is; `Control.tsx` only routes
+between them. A control added to the schema therefore appears in the right panel,
+with a working explanation and a help disclosure, without anyone writing JSX for it.
+
+Native form elements throughout, not hand-rolled widgets: `<input type="range">`
+brings arrow / PageUp / Home / End stepping, the correct ARIA role, platform touch
+sizing and a focus ring for free. Sliders work in _step positions_ mapped through
+`normalize` / `denormalize`, so one arrow key is one declared step even on a log
+axis, and `aria-valuetext` carries the formatted value with its unit — without it a
+screen reader announces "position 313 of 501".
+
+Irrelevant controls are **hidden, not disabled**, and their values persist, so
+switching a model back restores the reader's setup.
+
+| File                                                        | Provides                                                                                                  |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `Plot.tsx`                                                  | The one canvas host: rAF paint, DPR sizing, busy/progress overlay, PNG + CSV export, text metric summary  |
+| `InstrumentPanel.tsx`                                       | Panels, groups, advanced fold, and the aggressor selector for the one array-valued registry entry         |
+| `Control.tsx`, `Slider.tsx`, `Choice.tsx`, `NumberList.tsx` | The affordances a declaration can ask for                                                                 |
+| `HelpTip.tsx`                                               | A `<details>` disclosure, not a hover tooltip — hover does not exist on a phone                           |
+| `Math.tsx`                                                  | KaTeX, with the source line pointing at PHYSICS.md                                                        |
+| `Callout.tsx`                                               | The three fixed asides — caveat / in silicon / at the bench — plus the standing illustrative-value notice |
+| `MetricList.tsx`                                            | Metric readouts with targets and a verdict given as a word as well as a colour                            |
+| `SelfCheck.tsx`                                             | Multiple choice; the explanation is shown for every option once answered                                  |
+| `TryThis.tsx`                                               | A named experiment that patches the Scenario and pushes history                                           |
+| `ModuleShell.tsx`                                           | Reading column beside a sticky panel; permalink, reset, presets, bench tips, terms, prev/next             |
+
+Plot text is derived once: `describePlot(spec)` produces the caption, the canvas
+`aria-label` and the metric summary from the same declaration, so the words and the
+picture cannot disagree.
+
+### App — `src/app/`, `src/modules/`
+
+`App.tsx` is the hash router as a switch, not a library: the route already lives in
+`src/state/store.ts` because the scenario travels with it, and a router would be a
+second source of truth for something that has one. `SiteHeader` carries the
+through-line and an 1–11 stepper. `HomePage` shows each module's build status
+honestly. `GlossaryPage` is deep-linkable per term, which matters because every
+`see` reference in the control help points at it. `ErrorBoundary` turns a thrown
+component into the error plus the link that reproduces it, rather than a blank page.
+
+`modules/registry.ts` maps each module to the panels it offers — a claim about what
+the module lets you change, not a claim that the simulation behind it exists yet.
+`modules/Placeholder.tsx` stands in for every unwritten module and says so, naming
+the milestone it is waiting on. `ModulePage`'s `BODIES` table is empty at Milestone
+1 by design: the difference between a written module and an outline is one entry in
+one table, visible in the diff.
+
+### Entry — `index.html`, `src/main.tsx`
+
+Latin subsets only from `@fontsource` (the full `400.css` pulls in cyrillic, greek
+and vietnamese — four times the bytes for glyphs this course never renders).
+StrictMode is on, so a plot that leaks a rAF handle or a worker that is not cancelled
+on re-run fails in development rather than on a reader's laptop. `vite build`
+emits relative asset paths, confirmed against `vite preview`.
+
+`.github/workflows/pages.yml` builds and deploys on push to `main`, behind the same
+`npm run verify` gate.
+
+---
+
+## Stubbed, and honestly so
+
+- **Every module body.** `ModulePage`'s `BODIES` table is empty; all eleven modules
+  render `Placeholder`, which names the milestone the module is waiting on. The
+  panels beside them are live and the controls really write to the Scenario.
+- **`src/sim/{channel,equalizer,eye,impairments,touchstone}` are empty.** No channel
+  physics exists yet. None was invented to make the pages look finished.
+- **No direct numeric entry on a slider.** A reader who wants exactly 187.5 ps has
+  to arrive there by stepping. The permalink and the preset list cover the cases
+  where an exact value matters today; a typed-entry affordance is a Polish-milestone
+  item, not a Milestone 1 omission being hidden.
 
 ---
 
@@ -268,6 +349,27 @@ recur silently the same way. The regenerated goldens file is byte-identical to
 the one it replaced, confirming the swap changed nothing about what the script
 produces.
 
+**A control's help lives beside its declaration, not in its component.** Which is
+what lets `HelpTip` be one component rather than one per control, and what lets the
+coverage test assert that no control ships without an explanation.
+
+**Panel state is not Scenario state.** Which aggressor the panel is currently editing
+changes what you are looking at, not what is simulated, so it stays in component
+state and out of the permalink. The same rule sends self-check answers and reading
+progress to localStorage and nowhere near the URL.
+
+**`replace` vs `push` history is a reader-facing decision.** A slider drag replaces
+the history entry, so the back button does not step through four hundred intermediate
+values; navigation, presets and a `TryThis` setup push, so the back button undoes the
+experiment. That is the behaviour a reader expects without being told.
+
+**The token drift test reads the stylesheet from disk.** The obvious
+`import '../tokens.css?raw'` comes back empty under Vitest, which runs with CSS
+processing off — the test would then pass by comparing nothing with nothing, which is
+the worst failure mode a guard can have. It uses `node:fs` behind a file-scoped
+`/// <reference types="node" />`, so the app's type environment stays browser-only
+everywhere else.
+
 ---
 
 ## Open questions
@@ -291,15 +393,24 @@ every multiplier.
 
 _Assumed:_ the 2·Q⁻¹(BER) form. Confirm it matches house practice.
 
-### 3. Clean brief
+### 3. Clean brief — **resolved**
 
-The pasted project brief contains UTF-8 mojibake (em-dashes rendered as `â`). A
-clean `BRIEF.md` is owed so the governing document is readable in the repository.
+`BRIEF.md` is now in the repository. The pasted copy's UTF-8 had been decoded as
+Latin-1 (em dash as `â`), which is exactly invertible, so the file is the brief
+byte for byte with the encoding undone rather than a retyping of it. Twenty-one
+distinct non-ASCII characters survive, all of them intended: dashes, arrows, Greek
+letters and the mathematical minus.
 
 ---
 
 ## Next
 
-Finish the Milestone 1 shell and entry point and add the Pages workflow, then **stop
-for review** before starting Milestone 2. The three open questions above want
-answers at that gate.
+**Milestone 1 is at its gate.** The site builds, serves and deploys; the DSP,
+plotting, state, content and UI layers are in place and tested; no module argument
+has been written, and none has been faked.
+
+Milestone 2 is M1 (harmonics) and M2 (ideal edge to real edge) — the first two module
+bodies, the first plots wired to real jobs, and the first entries in `BODIES`.
+Waiting on review, and on the two open questions above: the Gibbs figure and the
+dual-Dirac convention. Work continues under the stated assumption for each if the
+answer comes later.

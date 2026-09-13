@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <title>Anatomy of an Edge</title>
+    <meta
+      name="description"
+      content="An interactive signal-integrity course: a transmitter sent a square wave, the receiver measured this, how do we get back to ones and zeros?"
+    />
+    <!--
+      Everything below is computed in the browser. There is no server, no API key and
+      no network call at runtime: the page is the whole program. That is why the
+      scenario lives in the URL hash - a link is the only way to hand someone else the
+      exact state of your screen when there is no backend to save it to.
+    -->
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>
+      <p style="max-width: 40rem; margin: 4rem auto; padding: 0 1rem; font-family: system-ui">
+        This course computes every waveform, eye diagram and shmoo in your browser, so it needs JavaScript
+        enabled. Nothing is sent anywhere - the computation is the reason the script is here.
+      </p>
+    </noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

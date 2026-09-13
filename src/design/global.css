@@ -1,0 +1,187 @@
+/*
+ * The one stylesheet the app loads.
+ *
+ * Order matters: tokens first so every layer below can reference the custom
+ * properties, then Tailwind's three layers, then the handful of base rules that
+ * Tailwind's preflight deliberately leaves to the application - typography, focus
+ * visibility, scrollbars and the KaTeX overrides.
+ *
+ * Everything here is either a token reference or a rule that cannot be expressed as
+ * a utility. Component appearance lives in the components.
+ */
+
+@import './tokens.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    /* Anchors inside a module scroll under the sticky header otherwise. */
+    scroll-padding-top: 5rem;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background: var(--ink-900);
+    color: var(--text-hi);
+    font-family: var(--font-sans);
+    font-size: var(--fs-body);
+    line-height: 1.55;
+    /* Bright text on a near-black ground renders too heavy without this. */
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /*
+   * Every readout, tick label and measured value is monospaced and tabular. Tabular
+   * figures are the point: a value that jumps between 1.000 and 1.111 while a slider
+   * moves must not change width, or the whole panel shivers.
+   */
+  code,
+  kbd,
+  samp,
+  pre,
+  .readout {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    color: var(--text-hi);
+    font-weight: 600;
+    line-height: 1.2;
+    text-wrap: balance;
+  }
+
+  a {
+    color: var(--ch3);
+    text-decoration-color: color-mix(in srgb, var(--ch3) 45%, transparent);
+    text-underline-offset: 2px;
+  }
+
+  a:hover {
+    text-decoration-color: var(--ch3);
+  }
+
+  /*
+   * One focus ring for the whole site, and it is visible. Keyboard operation is a
+   * requirement, not a courtesy: a reader stepping through twenty sliders with Tab
+   * has to be able to see where they are. `:focus-visible` keeps it off a mouse
+   * click, which is the only reason anyone ever removes focus rings.
+   */
+  :focus-visible {
+    outline: 2px solid var(--ch3);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--ch3) 35%, transparent);
+  }
+
+  /* A default-coloured scrollbar on a dark panel reads as a bright white bar. */
+  * {
+    scrollbar-color: var(--rule) transparent;
+    scrollbar-width: thin;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--rule);
+    border-radius: var(--radius-md);
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  canvas {
+    display: block;
+    /* The plot owns its own background; a transparent canvas would show page ground. */
+    background: var(--ink-800);
+  }
+
+  /*
+   * Honour the OS setting rather than ignoring it. Nothing on the site animates for
+   * decoration, but a swept parameter and a persistence decay both move, and a
+   * reader who has asked for stillness should get it.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /*
+   * KaTeX ships its own colour and size assumptions. These bring rendered maths onto
+   * the site's type scale and let a long display equation scroll inside its own box
+   * instead of widening the page on a phone.
+   */
+  .katex {
+    font-size: 1.04em;
+    color: var(--text-hi);
+  }
+
+  .katex-display {
+    margin: var(--space-4) 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: var(--space-2) 0;
+  }
+
+  /* Prose column: long-form reading width, independent of the panel beside it. */
+  .prose-column {
+    max-width: 68ch;
+  }
+
+  .prose-column p {
+    margin-bottom: var(--space-4);
+  }
+
+  .prose-column ul,
+  .prose-column ol {
+    margin-bottom: var(--space-4);
+    padding-left: var(--space-5);
+  }
+
+  .prose-column ul {
+    list-style: disc;
+  }
+
+  .prose-column ol {
+    list-style: decimal;
+  }
+
+  .prose-column li {
+    margin-bottom: var(--space-2);
+  }
+
+  .prose-column h2 {
+    font-size: var(--fs-h2);
+    margin-top: var(--space-6);
+    margin-bottom: var(--space-3);
+  }
+
+  .prose-column h3 {
+    font-size: var(--fs-lead);
+    margin-top: var(--space-5);
+    margin-bottom: var(--space-2);
+  }
+}

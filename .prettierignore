@@ -6,3 +6,7 @@ public
 # Pinned by generator and compared byte for byte; reformatting would invalidate it.
 src/state/__tests__/__goldens__
 src/plots/__tests__/__snapshots__
+
+# The governing brief, kept verbatim. Reformatting it would make the copy in the
+# repository differ from the document it is a copy of.
+BRIEF.md

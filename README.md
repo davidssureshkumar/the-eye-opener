@@ -16,14 +16,18 @@ static files.
 
 ## Status
 
-**Milestone 1 of 11 — core layers, in progress.** The DSP, plotting, state and
-content layers are implemented and tested. The React shell that assembles them into
-a page is not written yet, so **`npm run dev` does not yet serve a usable site**:
-there is no `index.html` or `src/main.tsx`. What you can do today is read the code
-and run the test suite.
+**Milestone 1 of 11 — core layers, complete and at review.** The DSP, plotting,
+state, content, design and UI layers are implemented and tested, and `npm run dev`
+serves the site: the shell, the router, the glossary and every instrument panel are
+live, and moving a control really does write to the Scenario and update the URL.
+
+What is **not** there yet is the teaching. No module body is written; all eleven
+render a placeholder that says which milestone it is waiting on, beside a working
+panel. Nothing plausible-sounding has been written to fill the gap — that is the
+failure mode this project is written against.
 
 ```
-1501 tests, 32 files, all passing
+1506 tests, 33 files, all passing
 ```
 
 See [PROGRESS.md](PROGRESS.md) for what is done, what is stubbed, and the known
@@ -39,13 +43,13 @@ Requires Node 18 or newer.
 
 ```bash
 npm install
-npm test          # vitest run  - the useful command today
+npm test          # vitest run
 npm run verify    # format check + lint + typecheck + test, in that order
 npm run typecheck # tsc -b --force
 npm run lint      # eslint .
 npm run format    # prettier --write .
 npm run goldens   # regenerate the pinned permalink goldens
-npm run dev       # vite dev server (see Status above)
+npm run dev       # vite dev server -> http://localhost:5173
 npm run build     # tsc -b && vite build  -> dist/
 npm run preview   # serve the built dist/ locally
 ```
@@ -57,6 +61,10 @@ The build output in `dist/` is plain static files with relative asset paths
 (`base: './'` in [vite.config.ts](vite.config.ts)), so it deploys unchanged to
 GitHub Pages, Netlify, Vercel, S3, or a folder served by anything at all. Routing is
 hash-based for the same reason: deep links survive a host with no rewrite rules.
+
+[.github/workflows/pages.yml](.github/workflows/pages.yml) publishes that folder to
+GitHub Pages on every push to `main`, behind the same `npm run verify` gate — a
+course whose physics tests fail has no business being published.
 
 ---
 
@@ -92,7 +100,27 @@ src/
   state/     The Scenario, its URL codec, the presets, the store.
   content/   Module list, glossary, per-control help, bench tips.
   design/    Design tokens: the one place a colour or a font size is defined.
+  ui/        The components a module is written out of, and the instrument panel.
+  modules/   Which panels each module offers; the placeholder for unwritten ones.
+  app/       Router, header, home page, glossary page, error boundary.
+  sim/       Channel physics. Empty until Milestone 3 — deliberately.
 ```
+
+### The instrument panel builds itself
+
+A control is three declarations and no JSX: [src/content/controls.ts](src/content/controls.ts)
+says which affordance and over what range, [src/content/help.ts](src/content/help.ts)
+says what it is called and what it does, and the `Scenario` says what it currently
+is. [src/ui/Control.tsx](src/ui/Control.tsx) only routes between them. Add a field to
+the schema, declare it, write its help — and it appears in the right panel, in the
+right group, with a working explanation, an accessible readout and a place in the
+permalink.
+
+The affordances are native elements. A range input brings arrow, PageUp, Home and End
+stepping, the correct ARIA role, platform touch sizing and a focus ring that no
+hand-rolled slider gets right for free. Sliders move in declared _steps_, so one
+arrow key is one step even on a log axis, and `aria-valuetext` carries the value with
+its unit — without it a screen reader says "position 313 of 501".
 
 ### The Scenario is the only state
 
@@ -273,7 +301,7 @@ summary beside every plot so the numbers are available without reading pixels.
 ## Testing
 
 ```bash
-npm test                # everything - 1501 tests across 32 files
+npm test                # everything - 1506 tests across 33 files
 npx vitest run src/dsp  # one layer
 npx vitest              # watch mode
 ```
@@ -283,6 +311,12 @@ Parseval's relation, known PRBS periods and run-length distributions, analytical
 known filter responses, histogram bin centres that must not sit on bin edges. The
 content tests check coverage and cross-reference integrity. The preset tests assert
 that no shipped default claims to be a specification figure.
+
+One test guards the design layer rather than the maths: `src/design/tokens.css`
+restates the palette for hand-written CSS, which cannot import TypeScript, and
+`src/design/__tests__/tokens-css.test.ts` generates the expected custom properties
+from the tokens and compares the set in both directions. A changed value, a missing
+property and a property left behind after its token was deleted all fail.
 
 The worker client is tested against a hand-driven fake worker rather than a timer,
 so every interleaving — a stale result arriving after its replacement, a worker that
