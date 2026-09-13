@@ -8,9 +8,16 @@
 # (/<repo>/), a user page (/), Netlify, Vercel or an S3 prefix without a rebuild.
 name: Pages
 
+# Manual for now. The repository is private, and GitHub Pages on a private
+# repository is a paid feature, so `configure-pages` returns 404 and the job fails
+# on every push - noise that says nothing about the code. Build and test coverage is
+# not lost: ci.yml runs the same verify and build on every push. Make the repository
+# public (or enable Pages on a paid plan), then restore the `push` trigger below.
+#
+# on:
+#   push:
+#     branches: [main]
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
