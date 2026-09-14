@@ -575,6 +575,13 @@ export const CONTROLS: Record<string, ControlSpec> = {
     order: 3,
     showWhen: { path: 'channel.kind', equals: ['lossy'] },
   },
+  'channel.lossy.dielectricLossEnabled': {
+    ui: 'toggle',
+    panel: 'channel',
+    group: 'lossy',
+    order: 4,
+    showWhen: { path: 'channel.kind', equals: ['lossy'] },
+  },
   'channel.lossy.lossTangent': {
     ui: 'slider',
     min: 0,
@@ -582,8 +589,8 @@ export const CONTROLS: Record<string, ControlSpec> = {
     step: 0.0005,
     panel: 'channel',
     group: 'lossy',
-    order: 4,
-    showWhen: { path: 'channel.kind', equals: ['lossy'] },
+    order: 5,
+    showWhen: { path: 'channel.lossy.dielectricLossEnabled', equals: [true] },
   },
   'channel.lossy.referenceFreq': {
     ui: 'log-slider',
@@ -593,19 +600,15 @@ export const CONTROLS: Record<string, ControlSpec> = {
     snapPoints: [1e9, 1e10],
     panel: 'channel',
     group: 'lossy',
-    order: 5,
-    advanced: true,
-    showWhen: { path: 'channel.kind', equals: ['lossy'] },
-  },
-  'channel.lossy.dcResistance': {
-    ui: 'slider',
-    min: 0,
-    max: 100,
-    step: 0.5,
-    panel: 'channel',
-    group: 'lossy',
     order: 6,
     advanced: true,
+    showWhen: { path: 'channel.lossy.dielectricLossEnabled', equals: [true] },
+  },
+  'channel.lossy.conductorLossEnabled': {
+    ui: 'toggle',
+    panel: 'channel',
+    group: 'lossy',
+    order: 7,
     showWhen: { path: 'channel.kind', equals: ['lossy'] },
   },
   'channel.lossy.conductivity': {
@@ -616,9 +619,9 @@ export const CONTROLS: Record<string, ControlSpec> = {
     snapPoints: [5.8e7],
     panel: 'channel',
     group: 'lossy',
-    order: 7,
+    order: 8,
     advanced: true,
-    showWhen: { path: 'channel.kind', equals: ['lossy'] },
+    showWhen: { path: 'channel.lossy.conductorLossEnabled', equals: [true] },
   },
   'channel.lossy.traceWidth': {
     ui: 'log-slider',
@@ -627,15 +630,35 @@ export const CONTROLS: Record<string, ControlSpec> = {
     step: 0.01,
     panel: 'channel',
     group: 'lossy',
-    order: 8,
-    showWhen: { path: 'channel.kind', equals: ['lossy'] },
+    order: 9,
+    showWhen: { path: 'channel.lossy.conductorLossEnabled', equals: [true] },
+  },
+  'channel.lossy.thickness': {
+    ui: 'log-slider',
+    min: 5e-6,
+    max: 1e-4,
+    step: 0.01,
+    snapPoints: [17.5e-6, 35e-6, 70e-6],
+    panel: 'channel',
+    group: 'lossy',
+    order: 10,
+    advanced: true,
+    showWhen: { path: 'channel.lossy.conductorLossEnabled', equals: [true] },
   },
   'channel.lossy.roughnessEnabled': {
     ui: 'toggle',
     panel: 'channel',
     group: 'lossy',
-    order: 9,
-    showWhen: { path: 'channel.kind', equals: ['lossy'] },
+    order: 11,
+    showWhen: { path: 'channel.lossy.conductorLossEnabled', equals: [true] },
+  },
+  'channel.lossy.roughnessModel': {
+    ui: 'select',
+    options: ['hammerstad', 'huray'],
+    panel: 'channel',
+    group: 'lossy',
+    order: 12,
+    showWhen: { path: 'channel.lossy.roughnessEnabled', equals: [true] },
   },
   'channel.lossy.roughnessRms': {
     ui: 'slider',
@@ -645,8 +668,28 @@ export const CONTROLS: Record<string, ControlSpec> = {
     snapPoints: [0.5e-6, 1e-6, 2e-6],
     panel: 'channel',
     group: 'lossy',
-    order: 10,
-    showWhen: { path: 'channel.lossy.roughnessEnabled', equals: [true] },
+    order: 13,
+    showWhen: { path: 'channel.lossy.roughnessModel', equals: ['hammerstad'] },
+  },
+  'channel.lossy.hurayRadius': {
+    ui: 'slider',
+    min: 0,
+    max: 2e-6,
+    step: 1e-8,
+    panel: 'channel',
+    group: 'lossy',
+    order: 14,
+    showWhen: { path: 'channel.lossy.roughnessModel', equals: ['huray'] },
+  },
+  'channel.lossy.hurayRatio': {
+    ui: 'slider',
+    min: 0,
+    max: 5,
+    step: 0.05,
+    panel: 'channel',
+    group: 'lossy',
+    order: 15,
+    showWhen: { path: 'channel.lossy.roughnessModel', equals: ['huray'] },
   },
   'channel.lossy.viaCount': {
     ui: 'slider',
@@ -656,7 +699,7 @@ export const CONTROLS: Record<string, ControlSpec> = {
     integer: true,
     panel: 'channel',
     group: 'lossy',
-    order: 11,
+    order: 16,
     showWhen: { path: 'channel.kind', equals: ['lossy'] },
   },
   'channel.lossy.viaC': {
@@ -666,7 +709,7 @@ export const CONTROLS: Record<string, ControlSpec> = {
     step: 2.5e-14,
     panel: 'channel',
     group: 'lossy',
-    order: 12,
+    order: 17,
     showWhen: { path: 'channel.kind', equals: ['lossy'] },
   },
 
@@ -1422,10 +1465,18 @@ export function valueAtPath(root: unknown, path: string, index = 0): unknown {
  * the schema.
  */
 export function isVisible(scenario: unknown, path: string, index = 0): boolean {
-  const spec = controlFor(path);
-  if (spec?.showWhen === undefined) return true;
-  const value = valueAtPath(scenario, spec.showWhen.path, index);
-  return spec.showWhen.equals.some((v) => v === value);
+  // A control is relevant only if the control it depends on is relevant too, so the
+  // Huray radius hides with the roughness model, the roughness toggle and the channel
+  // kind. The depth bound stops a cycle; the registry test rejects one as well.
+  let current = path;
+  for (let depth = 0; depth < 16; depth++) {
+    const spec = controlFor(current);
+    if (spec?.showWhen === undefined) return true;
+    const value = valueAtPath(scenario, spec.showWhen.path, index);
+    if (!spec.showWhen.equals.some((v) => v === value)) return false;
+    current = spec.showWhen.path;
+  }
+  return false;
 }
 
 /* ------------------------------------------------------------------ stepping */

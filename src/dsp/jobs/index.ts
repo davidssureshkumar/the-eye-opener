@@ -18,6 +18,7 @@ import { assertFinite } from '../guard';
 import type { JobDefinition, JobInput, ProgressFn } from './types';
 import { edgeJob, type EdgeParams, type EdgeResult } from './edge-job';
 import { fourierJob, type FourierParams, type FourierResult } from './fourier-job';
+import { lossyJob, type LossyParams, type LossyResult } from './lossy-job';
 import { patternJob, type PatternParams, type PatternResult } from './pattern-job';
 import { spectrumJob, type SpectrumParams, type SpectrumResult } from './spectrum-job';
 import { tlineJob, type TlineParams, type TlineResult } from './tline-job';
@@ -27,6 +28,7 @@ export * from './types';
 export * from './adapt';
 export * from './edge-job';
 export * from './fourier-job';
+export * from './lossy-job';
 export * from './pattern-job';
 export * from './spectrum-job';
 export * from './tline-job';
@@ -36,6 +38,7 @@ export * from './waveform-job';
 export interface JobParams {
   edge: EdgeParams;
   fourier: FourierParams;
+  lossy: LossyParams;
   pattern: PatternParams;
   spectrum: SpectrumParams;
   tline: TlineParams;
@@ -46,6 +49,7 @@ export interface JobParams {
 export interface JobResults {
   edge: EdgeResult;
   fourier: FourierResult;
+  lossy: LossyResult;
   pattern: PatternResult;
   spectrum: SpectrumResult;
   tline: TlineResult;
@@ -59,6 +63,7 @@ type Registry = { [K in JobKind]: JobDefinition<JobParams[K], JobResults[K]> };
 export const JOBS: Registry = {
   edge: edgeJob,
   fourier: fourierJob,
+  lossy: lossyJob,
   pattern: patternJob,
   spectrum: spectrumJob,
   tline: tlineJob,

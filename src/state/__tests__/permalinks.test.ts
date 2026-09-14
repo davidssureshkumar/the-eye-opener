@@ -155,6 +155,17 @@ describe('links written by hand still work', () => {
     expect(warnings.join(' ')).toContain('source.notAField');
   });
 
+  it('opens a link from before the conductor model derived DC resistance, without that key', () => {
+    // Milestone 4 replaced the free DC resistance with thickness and conductivity.
+    const { scenario, warnings } = decodeScenario(
+      'v1~channel.lossy.dcResistance:12~channel.lossy.length:0.5',
+    );
+    expect(scenario.channel.lossy.length).toBe(0.5);
+    expect(scenario.channel.lossy).not.toHaveProperty('dcResistance');
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('channel.lossy.dcResistance');
+  });
+
   it('survives an empty or truncated payload', () => {
     for (const text of ['', 'v1', 'v1~', '~~', 'v1~source.symbolRate:']) {
       expect(() => decodeScenario(text)).not.toThrow();

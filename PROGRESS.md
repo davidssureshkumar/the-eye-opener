@@ -3,30 +3,168 @@
 What is done, what is stubbed, what is known to be inaccurate, and what is waiting
 on an answer.
 
-Updated at the end of each milestone. Last updated: **2026-09-14**, at the
-Milestone 3 gate.
+Updated at the end of each milestone. Last updated: **2026-09-14**, at gate 4a of
+Milestone 4.
 
 ---
 
 ## Milestone status
 
-| #   | Milestone | Covers                             | State                  |
-| --- | --------- | ---------------------------------- | ---------------------- |
-| 1   | Core      | DSP, plots, state, content, shell  | Complete               |
-| 2   | M1 + M2   | Harmonics; ideal edge to real edge | Complete               |
-| 3   | M3        | Transmission lines and reflections | **Complete - at gate** |
-| 4   | M4        | Loss                               | Not started            |
-| 5   | M5        | ISI, eye diagrams, jitter          | Not started            |
-| 6   | M7        | Equalization                       | Not started            |
-| 7   | M6        | Crosstalk, noise, PDN              | Not started            |
-| 8   | M8        | DDR5 / LPDDR5 / HBM                | Not started            |
-| 9   | M9 + M10  | Wireless view; lab measurement     | Not started            |
-| 10  | M11       | Sandbox                            | Not started            |
-| 11  | Polish    | Accessibility, performance, docs   | Not started            |
+| #   | Milestone | Covers                             | State                   |
+| --- | --------- | ---------------------------------- | ----------------------- |
+| 1   | Core      | DSP, plots, state, content, shell  | Complete                |
+| 2   | M1 + M2   | Harmonics; ideal edge to real edge | Complete                |
+| 3   | M3        | Transmission lines and reflections | Complete                |
+| 4   | M4        | Loss                               | **4a at gate; 4b next** |
+| 5   | M5        | ISI, eye diagrams, jitter          | Not started             |
+| 6   | M7        | Equalization                       | Not started             |
+| 7   | M6        | Crosstalk, noise, PDN              | Not started             |
+| 8   | M8        | DDR5 / LPDDR5 / HBM                | Not started             |
+| 9   | M9 + M10  | Wireless view; lab measurement     | Not started             |
+| 10  | M11       | Sandbox                            | Not started             |
+| 11  | Polish    | Accessibility, performance, docs   | Not started             |
 
 Modules are built in the order above, not in numeric order: equalization (M7) comes
 before crosstalk (M6) because the eye-closure machinery it needs is built in
 Milestone 5.
+
+---
+
+## Milestone 4a — at gate
+
+**1782 tests across 44 files, all passing.** Milestone 4 is split into two gates, as
+decided at the Milestone 3 gate. Gate 4a is the loss physics and what it does to an
+edge; gate 4b adds measured channels. Gate 4a added 123 tests in four new files, the
+second file in `src/sim/`, a new job, a small complex-arithmetic module and the fourth
+entry in `BODIES`.
+
+| Layer          | Tests | Change |
+| -------------- | ----- | ------ |
+| `src/content`  | 789   | +26    |
+| `src/dsp`      | 289   | +14    |
+| `src/plots`    | 265   | —      |
+| `src/state`    | 138   | +1     |
+| `src/modules`  | 95    | +29    |
+| `src/dsp/jobs` | 91    | +13    |
+| `src/sim`      | 83    | +40    |
+| `src/workers`  | 27    | —      |
+| `src/design`   | 5     | —      |
+
+### M4 — Loss (gate 4a)
+
+`src/modules/m4/M4.tsx`, with its figures in `src/modules/m4/plots.ts`. The module's
+status is `in-progress` until 4b is written.
+
+The argument: a lossy line does not just make the far end smaller. Loss rises with
+frequency, so it removes the harmonics that made the edge sharp, and the pulse that
+arrives is shorter and wider than the one launched. Its tail lands in the next bits.
+The page builds that from the two mechanisms up:
+
+- **Skin effect.** The skin depth, and a conductor model that runs from DC resistance
+  into the skin regime.
+- **Rough copper.** Hammerstad and Huray, why both need a reactance to be causal, and
+  what goes wrong at the far end without one.
+- **Dielectric loss.** A wideband Debye laminate fitted to one Dk and Df.
+- **From RLGC to insertion loss.** The two mechanisms, the low-loss formulas beside
+  the exact curve, and a table of four illustrative material classes evaluated live.
+- **Return loss, vias and group delay.**
+- **The edge at the far end.** Pulse and step response, cursors, the causal/real
+  roughness comparison.
+- **Before and after.** A launched and a received bit stream overlaid.
+
+Displayed and implemented (PHYSICS.md §13): skin depth and surface resistance (4.1),
+the internal impedance (4.2), Hammerstad (4.3), Huray (4.4), the causal rough
+surface impedance (4.5), the wideband Debye permittivity (4.6), the line's
+propagation constant (4.7), S21 from ABCD (4.8), the low-loss attenuation formulas
+(4.9), group delay (4.10), the pulse spectrum (4.11) and the job that runs it (4.12).
+
+Every number on the page is evaluated. The materials table calls
+`conductorAttenuation` and `dielectricAttenuation` at the current Nyquist frequency.
+The self-check answers come from `skinDepth`, the same attenuation functions and the
+job's precursor measurement. Callouts:
+
+- A silicon callout on where the loss sits on a memory route. DDR5 receivers
+  equalize it with DFE at the DRAM, and the text cites JESD79-5 and JESD209-5 by
+  number only. HBM's interposer RC regime is described, not simulated.
+- A bench callout on measuring loss and removing it: S-parameter file import,
+  de-embed filters and their bandwidth limit, TDR/TDT, averaging.
+
+**Claims corrected before the gate.** Each experiment's expected result was checked
+numerically against the job before it was written down, and four drafts were wrong:
+
+- On the standard FR-4 class with a 100 µm trace, the dielectric does **not**
+  dominate at Nyquist. The crossover is near 13 GHz, because conductor loss scales
+  inversely with width. The experiment now changes the width and shows the crossover
+  move.
+- At 6.4 Gb/s, routes of 30 cm and longer close the eye with no noise at all, so the
+  length experiment runs 5 to 30 cm, where the collapse can be watched.
+- A self-check distractor claimed the dielectric term was larger at 2 GHz; it
+  overtakes the conductor term by 4 GHz.
+- The HBM paragraph asked the reader to set a trace width the controls cannot reach
+  (25 µm minimum). That regime is now described, not offered as an experiment.
+
+### New physics — `src/sim/channel/lossy.ts`
+
+- **Conductor.** DC resistance, then the skin effect, in one causal, passive internal
+  impedance.
+- **Roughness, real and causal.** Hammerstad and Huray; Bracken's closed-form causal
+  Huray; and a numerical Kramers-Kronig completion for Hammerstad, which has no
+  closed form. The completion is checked by running it on Huray and comparing with
+  Bracken.
+- **Dielectric and line.** Djordjevic-Sarkar wideband Debye; RLGC, γ and Z0;
+  scaled ABCD cascading with shunt-capacitance vias; S-parameters; group delay by an
+  argument-ratio difference that cannot wrap.
+- **Tests.** 40, against closed forms. Among them: a mismatched lossless section and
+  a single via checked to 10⁻¹², Kramers-Kronig at DC for the laminate, the 2.31 dB
+  per inch per GHz dielectric coefficient, and a 100 m route that would overflow a
+  naive cosh.
+
+### New job — `lossy`
+
+`src/dsp/jobs/lossy-job.ts` sweeps the route and its breakdown (conductor only,
+dielectric only, smooth, Hammerstad, Huray, the low-loss formula). It also sweeps return
+loss, group delay and the roughness factors. It builds launched and received one-UI
+pulses from their spectra on a record sized to outlast the far-end tail, and derives
+steps, cursors and a 50 % delay. Before superposing the bit stream it warms the
+stream up for a full record. It reports its own checks:
+
+- `precursorLeak`: causality;
+- `tailResidual`: the record wrap;
+- `recordTruncated`: the sample ceiling.
+
+The default route runs well inside the 2 s budget.
+
+### New DSP — `src/dsp/complex.ts`
+
+Complex arithmetic on plain `{re, im}` records, with a principal square root and
+logarithm, tested against identities. No allocation beyond the result object.
+
+### Scenario change — the conductor is now physical
+
+`channel.lossy.dcResistance`, a free number, is gone. DC resistance now follows from
+`traceWidth`, `thickness` and `conductivity`. Otherwise the skin effect and the DC
+resistance could contradict each other. The change adds:
+
+- `thickness`;
+- `conductorLossEnabled` and `dielectricLossEnabled`;
+- `roughnessModel` (`hammerstad` or `huray`);
+- `hurayRadius` and `hurayRatio`, illustrative.
+
+Each has a control and help. An old link carrying `dcResistance` still opens: the key
+is dropped with one warning, pinned by a new test in `permalinks.test.ts`. The
+permalink goldens are unchanged.
+
+### Decisions taken at the Milestone 3 gate
+
+- **Schema:** approved as proposed above.
+- **Materials:** the presets are named by class ("Standard FR-4 class", "Low-loss
+  class", "Ultra-low-loss class", "Package substrate class"), with illustrative values.
+  Product names may appear in prose, never with a number.
+- **Touchstone:** imported files stay in memory only (gate 4b).
+- **Gating:** two gates. 4a is loss physics, S21, IL and dB/in, group delay, pulse and
+  step, before/after stream. 4b is Touchstone import, mixed-mode, ILD/ICN,
+  passivity and causality checks on measured data, fibre weave and skew, and the
+  silicon loss-budget callout.
 
 ---
 
@@ -390,11 +528,15 @@ emits relative asset paths, confirmed against `vite preview`.
 
 ## Stubbed, and honestly so
 
-- **Nine of the eleven module bodies.** `BODIES` holds `m1` and `m2`; M3 through M11
+- **Seven of the eleven module bodies.** `BODIES` holds `m1` to `m4`; M5 through M11
   render `Placeholder`, which names the milestone each is waiting on. The panels
   beside them are live and the controls really write to the Scenario.
-- **`src/sim/{channel,equalizer,eye,impairments,touchstone}` are empty.** No channel
-  physics exists yet. None was invented to make the pages look finished.
+- **M4 is half written.** Gate 4b's sections do not exist yet: Touchstone import,
+  differential pairs and mixed-mode, ILD/ICN, and fibre weave. The page's closing
+  paragraph says they are coming rather than implying the page is complete.
+- **`src/sim/{equalizer,eye,impairments,touchstone}` are empty.** `src/sim/channel`
+  holds the lossless and lossy lines and nothing else. No physics was invented to make
+  the pages look finished.
 - **No direct numeric entry on a slider.** A reader who wants exactly 187.5 ps has
   to arrive there by stepping. The permalink and the preset list cover the cases
   where an exact value matters today; a typed-entry affordance is a Polish-milestone
@@ -432,6 +574,10 @@ answer spans decades). Not a limitation in practice, but stated rather than assu
 A magnitude floor protects the logarithm at deep nulls. A channel with a true
 transmission zero — a resonant stub — is not minimum-phase at all and needs measured
 phase. Module 4 must say this on screen when the construction is used.
+
+Gate 4a does not use it. The lossy line's S21 carries its own exact phase from the
+ABCD cascade, so no phase is reconstructed from magnitude. The obligation moves to
+gate 4b, where a measured file with suspect or missing phase is the case that needs it.
 
 ### 5. Lumped RLC validity
 
@@ -487,7 +633,78 @@ The channel panel shows one model's controls at a time. M3's figures read the
 `tline` fields whatever is selected, so they are correct, but the controls the prose
 refers to are hidden until the model is selected. `ChannelKindNotice` says so and
 offers the switch. Job parameters (record length, lattice rows, the TDR axis, the
-overlays) are module-local and not in the permalink, as in item 6.
+overlays) are module-local and not in the permalink, as in item 6. M4 has the same
+arrangement for the `lossy` model, and the Scenario's default model is `lossy`.
+
+### 13. The lossy line's geometry is a rule of thumb
+
+Conductor loss uses one conductor surface of the trace width, with the return path
+lossless. That is not a field solution: a real stripline carries current on both
+faces and its edges, and loses in its planes too. Trace width and thickness are
+inputs to that simple model, not a stack-up, and conductor dB per inch read from M4
+is a rule-of-thumb value for a trace of that width. PHYSICS.md §13.1.
+
+### 14. The dielectric is homogeneous
+
+One permittivity fills the cross-section, so the line is exactly TEM. A microstrip, or
+a stripline with resin-rich layers, would have an effective permittivity. Dk and Df
+are matched exactly at the reference frequency; elsewhere the wideband Debye shape is
+a consistent extrapolation, not a laminate measurement. PHYSICS.md §13.3.
+
+### 15. The lossy route sits between 50 Ω ports
+
+S-parameters, pulses and the bit stream are computed between ideal 50 Ω reference
+ports. The Scenario's driver impedance and far-end termination are not applied to the
+lossy route, so M4 shows loss and not mismatch on top of it, except for the line's own
+Z0 and the vias. The launched level is half the Scenario amplitude. This interacts with
+open question 4, which asks what `source.amplitude` means.
+
+### 16. Roughness is added to the surface impedance
+
+The roughness term is (K_c − 1)(1 + j)R_s/w added to the finite-thickness internal
+impedance, rather than a factor on it. The two agree far above the skin onset; below
+it, the added form keeps DC resistance exact. The Huray model assumes one nodule size
+on a flat base. PHYSICS.md §13.2.
+
+### 17. The pulse record is periodic
+
+The one-UI pulse comes from an inverse FFT, so its tail wraps onto its start. The
+record is sized to outlast the tail, and the job reports `tailResidual` and
+`recordTruncated`; M4 prints a note when either says the record was too short. The
+smooth-copper pulse's small pre-arrival residue is this wrap, which is why the
+causality test compares rough copper with smooth rather than with zero.
+
+### 18. Breakdown curves force their mechanism on
+
+The conductor-only, dielectric-only, smooth, Hammerstad and Huray curves each run the
+route with the mechanism they show switched on, whatever the channel panel says.
+Otherwise a curve would vanish when its mechanism is off. The figure says so when that
+happens.
+
+### 19. The low-loss formulas are approximate
+
+The conductor attenuation R′/(2Z0) overstates the exact value by about R′/(2ωL′),
+roughly 1.5 % for a 100 µm trace at 2 GHz. Adding the two mechanisms in dB is within
+2 % of the exact loss at Nyquist on the default route. M4 draws the formula over the
+exact curve so the reader can see where it departs. PHYSICS.md §13.5.
+
+### 20. HBM's interposer regime is described, not simulated
+
+The controls stop at board dimensions (trace width 25 µm). A fine-line interposer or
+redistribution layer, where resistance competes with ωL′ across the band, is described
+in M4's silicon callout but cannot be dialled up.
+
+### 21. The material classes are illustrative
+
+M4's four classes (Dk, Df, copper roughness) are round illustrative values chosen to
+span the range, labelled as such on the page. They come from no datasheet and should
+not be read as any product's numbers.
+
+### 22. M4's figure settings are not in the permalink
+
+Normalisation, the approximation overlay, the roughness and dielectric views, the
+pulse view, the number of UIs shown and the causal/real comparison are job or view
+parameters, as in item 6.
 
 ---
 
@@ -612,6 +829,17 @@ field.
 simulates the step and adds the pre-step divider level. Exact for a linear model, and
 it avoids launching a step at t = 0 from a line that was never at zero.
 
+**Roughness is causal by default, and the non-causal form is kept to be shown.** The
+real Hammerstad and Huray factors are what most tools apply, and they make a far-end
+pulse arrive before light could. M4's line uses the complex, causal factor, with the loss
+identical to the real one. The real factor is still available as a job parameter,
+so the page can put the two precursors side by side instead of asserting the point.
+
+**M4 builds its pulse by FFT, unlike M3.** M3 avoided the FFT because a lossless open
+line rings forever. A lossy line's response dies away, and loss is defined in the
+frequency domain. The record is sized from the slowest possible arrival plus a tail,
+and the wrap is measured and reported rather than assumed away.
+
 ---
 
 ## Open questions — one
@@ -669,12 +897,21 @@ letters and the mathematical minus.
 
 ## Next
 
-**Milestone 3 is at its gate.** M3 is written, wired to a real job, and reachable from
-the site. Every formula it displays is implemented in `src/sim/channel/tline.ts` and
-derived in PHYSICS.md §12, and every number in its prose, tables and self-checks is
-evaluated rather than quoted.
+**Milestone 4 is at gate 4a.** M4's loss sections are written, wired to the `lossy` job
+and reachable from the site. Every formula they display is implemented in
+`src/sim/channel/lossy.ts` or `src/dsp/jobs/lossy-job.ts`, and derived in PHYSICS.md
+§13. Every number in the prose, the materials table and the self-checks is evaluated
+rather than quoted.
 
-Milestone 4 is M4, loss: skin effect, dielectric loss and surface roughness, the
-`lossy` channel model the Scenario already defaults to, and what loss does to an edge
-with nothing to reflect from. It is also where the minimum-phase construction of §10.2
-is first used on screen, which item 4 above says must be stated there.
+Gate 4b completes M4 with measured channels:
+
+- Touchstone import, kept in memory only;
+- differential pairs and mixed-mode S-parameters;
+- ILD and ICN;
+- passivity and causality checks on a measured file, and the minimum-phase
+  construction that item 4 says must be stated on screen;
+- fibre weave and intra-pair skew;
+- the silicon loss-budget callout.
+
+Open question 4 is still open, and gate 4a's 50 Ω ports (item 15) sidestep it rather
+than answer it.

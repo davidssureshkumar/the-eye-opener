@@ -60,7 +60,14 @@ export const PHYSICS_SECTIONS: Readonly<Record<string, string>> = {
   '12.4': '124-the-lattice-and-the-final-level',
   '12.5': '125-the-simulator-and-a-capacitive-far-end',
   '12.6': '126-tdr',
-  '13': '13-open-items',
+  '13': '13-lossy-lines',
+  '13.1': '131-skin-effect-and-the-internal-impedance',
+  '13.2': '132-surface-roughness-and-its-causal-form',
+  '13.3': '133-wideband-debye-dielectric',
+  '13.4': '134-rlgc-abcd-s-parameters-and-group-delay',
+  '13.5': '135-low-loss-attenuation-formulas',
+  '13.6': '136-pulse-step-and-bit-stream',
+  '14': '14-open-items',
 };
 
 /** Link to a numbered section of PHYSICS.md, or undefined if there is no such section. */

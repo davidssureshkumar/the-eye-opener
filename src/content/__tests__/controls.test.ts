@@ -363,6 +363,42 @@ describe('visibility conditions', () => {
     expect(isVisible(s, 'channel.terminationZ')).toBe(true);
   });
 
+  it('hides a control whose dependency is itself hidden', () => {
+    const s = defaultScenario();
+    const huray: Scenario = {
+      ...s,
+      channel: { ...s.channel, lossy: { ...s.channel.lossy, roughnessModel: 'huray' } },
+    };
+    expect(isVisible(huray, 'channel.lossy.hurayRatio')).toBe(true);
+    expect(isVisible(huray, 'channel.lossy.roughnessRms')).toBe(false);
+    expect(isVisible(s, 'channel.lossy.hurayRatio')).toBe(false);
+    const smooth = {
+      ...huray,
+      channel: { ...huray.channel, lossy: { ...huray.channel.lossy, roughnessEnabled: false } },
+    };
+    expect(isVisible(smooth, 'channel.lossy.hurayRatio')).toBe(false);
+    const bare = {
+      ...huray,
+      channel: { ...huray.channel, lossy: { ...huray.channel.lossy, conductorLossEnabled: false } },
+    };
+    expect(isVisible(bare, 'channel.lossy.roughnessModel')).toBe(false);
+    const ideal = { ...huray, channel: { ...huray.channel, kind: 'ideal' as const } };
+    expect(isVisible(ideal, 'channel.lossy.hurayRatio')).toBe(false);
+    expect(isVisible(ideal, 'channel.lossy.traceWidth')).toBe(false);
+  });
+
+  it('never forms a dependency cycle', () => {
+    for (const [path] of conditional) {
+      const seen = new Set<string>([path]);
+      let next = CONTROLS[path]?.showWhen?.path;
+      while (next !== undefined) {
+        expect(seen.has(next), `${path} cycles through ${next}`).toBe(false);
+        seen.add(next);
+        next = CONTROLS[next]?.showWhen?.path;
+      }
+    }
+  });
+
   it('treats an unconditional control as always visible', () => {
     expect(isVisible(defaultScenario(), 'source.symbolRate')).toBe(true);
     expect(isVisible(defaultScenario(), 'nonexistent.path')).toBe(true);

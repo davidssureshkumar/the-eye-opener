@@ -133,16 +133,26 @@ export const lossyChannelSchema = z.object({
   lossTangent: z.number().nonnegative().max(0.2).default(0.02),
   /** Frequency at which er and lossTangent are stated, Hz. */
   referenceFreq: z.number().positive().max(1e12).default(1e9),
-  /** DC series resistance per metre, ohms/m. */
-  dcResistance: z.number().nonnegative().max(1e5).default(8),
+  /** Include dielectric loss. Off, the permittivity is the real constant er. */
+  dielectricLossEnabled: z.boolean().default(true),
+  /** Include conductor loss: DC resistance rising into the skin effect. */
+  conductorLossEnabled: z.boolean().default(true),
   /** Conductor conductivity, S/m. Copper is 5.8e7. */
   conductivity: z.number().positive().max(1e9).default(5.8e7),
   /** Trace width, metres. Sets the skin-effect surface area. */
   traceWidth: z.number().positive().max(0.1).default(100e-6),
-  /** Copper RMS surface roughness, metres. VLP foil ~0.5 um, standard ~2 um. */
-  roughnessRms: z.number().nonnegative().max(1e-4).default(0.5e-6),
-  /** Include the Hammerstad roughness correction. */
+  /** Trace thickness, metres. With width and conductivity it sets the DC resistance. 35 um is 1 oz foil. */
+  thickness: z.number().positive().max(1e-3).default(35e-6),
+  /** Include a copper roughness correction on conductor loss. */
   roughnessEnabled: z.boolean().default(true),
+  /** Which roughness correction: Hammerstad (saturates at 2) or Huray snowball (saturates at 1 + ratio). */
+  roughnessModel: z.enum(['hammerstad', 'huray']).default('hammerstad'),
+  /** Copper RMS surface roughness for the Hammerstad model, metres. VLP foil ~0.5 um, standard ~2 um. */
+  roughnessRms: z.number().nonnegative().max(1e-4).default(0.5e-6),
+  /** Huray snowball radius, metres. Illustrative. */
+  hurayRadius: z.number().nonnegative().max(1e-5).default(0.5e-6),
+  /** Huray surface ratio: total snowball surface over the flat area it sits on. Illustrative. */
+  hurayRatio: z.number().nonnegative().max(20).default(1.5),
   /** Number of cascaded via discontinuities along the path. */
   viaCount: z.number().int().min(0).max(16).default(2),
   /** Shunt capacitance of one via stub, farads. */

@@ -19,6 +19,7 @@ import { panelsFor } from '../modules/registry';
 import { M1 } from '../modules/m1/M1';
 import { M2 } from '../modules/m2/M2';
 import { M3 } from '../modules/m3/M3';
+import { M4 } from '../modules/m4/M4';
 
 /**
  * Modules with a written body. Everything not listed here falls through to
@@ -28,6 +29,7 @@ const BODIES: Record<string, ComponentType<{ moduleId: string }>> = {
   m1: M1,
   m2: M2,
   m3: M3,
+  m4: M4,
 };
 
 export function ModulePage({ moduleId }: { moduleId: string }): JSX.Element {

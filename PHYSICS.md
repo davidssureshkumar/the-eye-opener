@@ -14,11 +14,12 @@ class of interface and are labelled illustrative; they are not specification
 figures. Where a _polynomial_ or a _definition_ comes from a public standard
 (ITU-T O.150, IEEE 802.3), the standard is named.
 
-Scope: this file covers the layers implemented through Milestone 3 — DSP,
-plotting mathematics, scenario state, and the lossless transmission line (§12).
-The remaining channel physics (skin effect, dielectric loss, crosstalk,
-equalization) is specified in the module plan and will be added to this file as
-each module is built, not before.
+Scope: this file covers the layers implemented through Milestone 4a — DSP,
+plotting mathematics, scenario state, the lossless transmission line (§12), and
+the lossy line: skin effect, roughness, dielectric loss, S-parameters and the
+far-end pulse (§13). The remaining channel physics (measured S-parameters,
+differential pairs, crosstalk, equalization) is specified in the module plan and
+will be added to this file as each module is built, not before.
 
 ---
 
@@ -1002,7 +1003,398 @@ or instrument noise.
 
 ---
 
-## 13. Open items
+## 13. Lossy lines
+
+Module 4. Implemented in `src/sim/channel/lossy.ts`; the job that drives it is
+`src/dsp/jobs/lossy-job.ts`, and the figures are `src/modules/m4/plots.ts`. The line
+is uniform, single-ended and quasi-TEM in a homogeneous dielectric, with conductor
+loss, surface roughness, dielectric loss and equally spaced shunt-capacitance vias,
+measured between 50 Ω reference ports (`LOSSY_REFERENCE_OHMS`). Every function in
+this section is **causal and passive by construction**, and §13.2 and §13.3 say why
+that needs doing on purpose.
+
+Sources for the whole section: D. M. Pozar, _Microwave Engineering_, 4th ed. (Wiley,
+2012), chs. 1-2 and 4 (skin effect, lossy lines, ABCD and S-parameters); H. Johnson
+and M. Graham, _High-Speed Signal Propagation: Advanced Black Magic_ (Prentice Hall,
+2003), chs. 2-3 (skin effect and dielectric loss on board routes); S. Ramo, J. R.
+Whinnery and T. Van Duzer, _Fields and Waves in Communication Electronics_, 3rd ed.
+(Wiley, 1994), ch. 5 (internal impedance). Model-specific sources are given in each
+subsection. No JEDEC material and no datasheet value is used; the material classes
+M4 tabulates are illustrative.
+
+### 13.1 Skin effect and the internal impedance
+
+```
+δ       = 1 / √(π f μ0 σ)                   μ0 = 1.25663706212e-6 H/m (CODATA 2018)
+R_s     = √(π f μ0 / σ) = 1 / (σ δ)
+R_dc    = 1 / (σ w t)
+f_skin  = 1 / (2π μ0 σ t²)                  (δ = √2 · t there)
+Z_int   = R_dc · √(1 + j f / f_skin)
+```
+
+`skinDepth`, `surfaceResistance`, `dcResistancePerMetre`, `skinOnsetFrequency`,
+`internalImpedance`.
+
+For copper at 5.8e7 S/m, δ is 2.09 µm at 1 GHz, scaling as 1/√f.
+
+_Derivation of Z_int._ The two limits are fixed: R_dc at DC, and far above the onset
+the surface impedance of a good conductor, (1 + j) R_s, over the width carrying the
+current. Z_int = R_dc √(1 + j f/f_skin) meets both: for f ≫ f_skin,
+R_dc √(j f/f_skin) = √j · √(2π f μ0 σ t²)/(σ w t) = (1 + j) R_s / w. As a function of
+s = j2πf it is R_dc √(1 + s/(2π f_skin)), whose only singularity is the branch point at
+s = −2π f_skin in the left half-plane, so it is analytic in the right half-plane
+(causal), and its real part is positive for every f (passive). Its DC slope,
+Z_int ≈ R_dc (1 + j f/(2 f_skin)), is an internal inductance R_dc/(4π f_skin), which
+`rlgcAt` reports at f = 0.
+
+**Approximation - geometry.** This is a one-surface model: the current is taken to
+flow in one skin depth over the trace width w, with the return path lossless. It is
+not a field solution. A real stripline carries current on both faces and its edges,
+with a lossy return in the planes, and the edges crowd. The trace width and thickness
+controls are inputs to this simple model, not a stack-up, and conductor loss read off
+M4 is a rule-of-thumb value for a trace of that width (PROGRESS.md, known
+approximations). The joining function between the two limits is also a model: the
+exact internal impedance of a rectangular bar has no closed form, and this expression
+is chosen for its limits and its causality, not fitted to one.
+
+Valid range: σ, w, t > 0; any f ≥ 0. The low-loss attenuation of §13.5 additionally
+assumes R′ ≪ ωL′.
+
+### 13.2 Surface roughness and its causal form
+
+```
+Hammerstad:   K_H  = 1 + (2/π) · atan(1.4 (Δ/δ)²)                     → 2
+Huray:        K_Hu = 1 + S / (1 + δ/a + δ²/(2a²))                     → 1 + S
+ratio:        y    = (L/δ)² = π f μ0 σ L²                             L = Δ or a
+```
+
+`hammerstadFactor`, `hurayFactor`, `roughnessFactor`, `roughnessRatio`.
+
+Sources: E. Hammerstad and Ø. Jensen, "Accurate models for microstrip computer-aided
+design", IEEE MTT-S International Microwave Symposium Digest, 1980; P. G. Huray et al.,
+"Fundamentals of a 3-D 'snowball' model for surface roughness power losses", IEEE
+Workshop on Signal Propagation on Interconnects, 2007, and P. G. Huray, _The
+Foundations of Signal Integrity_ (Wiley, 2010), ch. 8; E. Bracken, "A Causal Huray
+Model for Surface Roughness", DesignCon 2012.
+
+Δ is the RMS profile height; a is the nodule radius and S the total nodule surface
+area per unit flat area, with the matte base taken as flat and a single nodule size.
+Both factors depend on f only through y, so each has a **roughness corner** at y = 1,
+f = 1/(π μ0 σ L²), where δ = L. M4 draws that corner for each model
+(`roughnessCorner` in the plots). At δ = a the Huray factor has made 40 % of its rise
+(1/2.5); at δ = Δ the Hammerstad factor has made 60.5 % (atan 1.4 / (π/2)).
+
+**The real factors are not causal.** Both scale the resistance by a real K(f). A
+resistance that varies with frequency with no matching reactance violates
+Kramers-Kronig, and the pulse response then starts before the signal could have
+arrived. The site therefore applies roughness to the surface impedance in complex
+form:
+
+```
+Z_c(f) = Z_int(f) + (K_c(f) − 1) · (1 + j) R_s(f) / w
+Re K_c − Im K_c = K           (the resistance is exactly the real model's)
+```
+
+`conductorImpedance`, `causalRoughnessFactor`. Resistance is
+Re[(K_c − 1)(1 + j)] R_s/w = (Re K_c − 1 − Im K_c) R_s/w = (K − 1) R_s/w, so the loss is
+unchanged; the reactance (K − 1 + 2 Im K_c) R_s/w is what causality adds. The term is
+**added** to Z_int rather than multiplying it, so the resistance is
+Re Z_int + (K − 1) R_s/w at every frequency, not only far above f_skin; with f ≫ f_skin
+the two forms agree. `conductorImpedance(..., causal = false)` puts the real K back,
+which is what M4's comparison figure runs.
+
+_Huray, closed form (Bracken)._
+
+```
+K_c,Hu = 1 + S · q / (1 + q),     q = (1 + j) a/δ = (1 + j) √y
+```
+
+`hurayCausalFactor`. With u = 1/(2√y), 1/q = u(1 − j) and
+q/(1 + q) = (1 + u + ju)/((1 + u)² + u²), so Re − Im = 1/(1 + 2u + 2u²) =
+1/(1 + δ/a + δ²/(2a²)): the real Huray factor, exactly. Each nodule term is a
+single-pole-like function of √s, analytic in the right half-plane, and its argument
+stays below 45°, so Z_c keeps a positive real part.
+
+_Hammerstad, numerical completion._ Hammerstad has no published causal partner, so it
+is completed numerically (`causalCompletion`, `hammerstadCausalFactor`). In units of
+R_s at y = 1, the roughness resistance is ρ(y) = (K(y) − 1)√y. For an impedance with
+even resistance and odd reactance, Kramers-Kronig gives the reactance
+
+```
+χ(y)   = (2y/π) · PV ∫₀^∞ ρ(u) / (u² − y²) du
+K_c    = 1 + (ρ + jχ) / ((1 + j)√y)
+Im K_c = (χ − ρ) / (2√y)
+```
+
+Numerics, all in the implementation's own terms:
+
+- The grid is logarithmic in y, from 10⁻¹⁸ to 10¹⁴ at 24 points per decade
+  (`COMPLETION_GRID`), and the result is interpolated over 10⁻¹⁴ to 10¹⁰.
+- The principal value is taken by subtraction, allowed because
+  PV ∫₀^∞ du/(u² − y²) = 0. The subtracted integrand is smooth, with value ρ′(y)/2 at
+  u = y.
+- Above y = 1 the transform is of ρ − (K∞ − 1)√y rather than of ρ. The two differ by the
+  smooth surface's own Hilbert pair (√y is its own transform in this form), and the
+  change avoids cancelling two large numbers.
+- The tails beyond the grid are added in closed form. Im K_c is interpolated in
+  log-log by Catmull-Rom and extrapolated as a power law.
+- The real part is always set to K + Im K_c, so the loss is exact whatever the
+  interpolation error. The table is built once, on first use, since K_H is universal in
+  y.
+
+The completion throws if the reactance comes out non-positive anywhere, which would
+mean the input was not a valid passive loss.
+
+_Verification._ The tests run the same completion on the real Huray factor and compare
+it with Bracken's closed form: Im K_c agrees to 3×10⁻⁴ relative for y from 10⁻¹² to 10⁸,
+and Re K_c − Im K_c equals the loss to 10⁻¹². They also check the result in the time
+domain. With the complex factor, the far-end pulse before the earliest arrival (§13.6) is
+within 20 % of smooth copper's, which is the record wrap alone; with the real factor it is
+more than 20 times smooth copper's, for both models.
+
+_Low-frequency inductance._ As y → 0, K_c − 1 ≈ C (1 + j)√y. Multiplied by
+(1 + j) R_s/w, that is a pure reactance linear in f: an inductance per metre
+
+```
+L_rough(0) = μ0 · C · L / w          Huray: C = S, L = a
+                                     Hammerstad: C = J/π,  J = ∫₀^∞ (K(u) − 1) u^(−3/2) du, L = Δ
+
+J for Hammerstad = 2√2.8, so C = 2√2.8/π ≈ 1.0653   (by parts and a Mellin integral)
+```
+
+`roughnessLowFrequencyInductance`. Rough copper is slightly slower than smooth copper
+at every frequency below its corner, which a real factor would miss. `rlgcAt` adds it
+to L at DC.
+
+Assumptions: single nodule size and flat base (Huray); the Hammerstad fit's own
+empirical basis. Valid for any f ≥ 0; the models themselves are least reliable when
+Δ or a approaches the conductor thickness.
+
+### 13.3 Wideband Debye dielectric
+
+```
+F(f)  = log10((10^m₂ + j f) / (10^m₁ + j f)) / (m₂ − m₁)          F(0) = 1, F(∞) = 0
+ε(f)  = ε∞ + Δε · F(f)
+Δε    = −εr · tanδ / Im F(f_ref)
+ε∞    = εr − Δε · Re F(f_ref)
+tanδ(f) = −Im ε / Re ε
+```
+
+`fitWidebandDebye`, `permittivityAt`, `lossTangentAt`. m₁ = 4 and m₂ = 12
+(`DEBYE_LOWER_DECADE`, `DEBYE_UPPER_DECADE`): corners at 10 kHz and 1 THz.
+
+Source: A. R. Djordjevic, R. M. Biljić, V. D. Likar-Smiljanić and T. K. Sarkar,
+"Wideband frequency-domain characterization of FR-4 and time-domain causality", IEEE
+Transactions on Electromagnetic Compatibility 43(4), 2001.
+
+_Derivation._ F is a continuous distribution of Debye relaxations with poles spread
+uniformly in log frequency between the corners. Each has the form 1/(1 + jf/f_k), analytic
+in the right half-plane, so their integral is causal. Fitting the two free constants
+to the Dk and Df stated at one frequency makes the model reproduce both exactly there,
+which the tests assert. Between the corners the ratio inside the logarithm is close to
+10^m₂/(jf), so Im F ≈ −π/(2 ln 10 (m₂ − m₁)) is nearly constant, tanδ is nearly flat
+(within 5 % of its stated value over three decades around 1 GHz, asserted), and
+Re F ≈ (m₂ − log10 f)/(m₂ − m₁), so ε′ falls by Δε/(m₂ − m₁) per decade: a few percent per
+decade for a lossy laminate. The tests also check Kramers-Kronig directly at DC,
+ε(0) − ε∞ = (2/π) ∫₀^∞ ε″(f) df/f, to 10⁻⁴.
+
+With dielectric loss switched off, the line uses the constant εr with tanδ = 0, which
+is lossless and therefore causal.
+
+**Approximation - the dielectric is homogeneous.** One permittivity fills the whole
+cross-section, so the line is exactly TEM and the phase velocity is c/√ε′. A microstrip,
+or a stripline with resin-rich layers, has an effective permittivity that is a mix. A
+real laminate's Dk and Df are not generally flat between two corners either. The fit is
+exact at the reference frequency and a physically consistent extrapolation elsewhere,
+not a material measurement.
+
+### 13.4 RLGC, ABCD, S-parameters and group delay
+
+```
+L_ext = Z0 √εr / c        C_vac = 1 / (Z0 c √εr)       (L_ext C_vac = 1/c²)
+Z′    = jω L_ext + Z_c(f)                              (Z_c only with conductor loss on)
+Y′    = jω C_vac ε(f)
+γ     = √(Z′Y′) = α + jβ,   α ≥ 0         Z0(f) = √(Z′/Y′)
+R′ = Re Z′,  L′ = Im Z′/ω,  G′ = −ω C_vac Im ε,  C′ = C_vac Re ε
+```
+
+`prepareLine`, `linePermittivity`, `seriesImpedance`, `shuntAdmittance`, `rlgcAt`,
+`propagationConstant`, `characteristicImpedanceAt`.
+
+The Scenario's Z0 is the characteristic impedance **at the reference frequency, ignoring
+conductor loss**. L_ext and C_vac are set from it and from εr, and the frequency
+dependence enters only through ε(f) and Z_c(f). At DC `rlgcAt` returns the limits: R_dc,
+L_ext plus the internal inductance of §13.1 and the roughness inductance of §13.2, G = 0,
+and C_vac ε(0).
+
+_A section as a two-port._ With x = γℓ, Z = Z′ℓ and Y = Y′ℓ,
+
+```
+A = D = cosh x,      B = Z · sinh x / x,      C = Y · sinh x / x
+```
+
+This is written through sinh x / x, which is even in x and finite at DC. Neither the
+branch of γ nor the unbounded Z0(f) at DC can then enter. For a long lossy line cosh x
+overflows, so the matrix is held **scaled**, as e^x times [(1 + e^(−2x))/2, ...], with
+the exponents summed along a cascade. sinh x / x uses its series 1 − x + 2x²/3 − x³/3
+(scaled) for |x| < 10⁻⁴. The route is viaCount + 1 equal sections with a shunt
+capacitance, ABCD [1 0; jωC_via 1], between each pair.
+
+```
+S21 = 2 / (A + B/R0 + C·R0 + D)
+S11 = (A + B/R0 − C·R0 − D) / (A + B/R0 + C·R0 + D)
+IL  = −20 log10 |S21|        (capped at 300 dB)
+RL  = −20 log10 |S11|        (capped at 80 dB, RETURN_LOSS_CAP_DB)
+```
+
+`sParametersAt`, `insertionLossDb`, `returnLossDb` in the job. These are the standard
+ABCD-to-S conversions for equal real reference impedances (Pozar, table 4.2). Checks
+asserted in the tests:
+
+- A matched lossless line is a pure delay: |S11| < 10⁻¹², |S21| = 1 and arg S21 = −2πfℓ√εr/c.
+- A lossless 75 Ω section between 50 Ω ports matches the closed-form S11 and S21 of a
+  mismatched line to 10⁻¹².
+- One via on a matched lossless line gives S21 = e^(−jθ) · 2/(2 + jωC_via R0).
+- At DC the route is a series resistance x·R0 = R_dc ℓ between the ports, so
+  S21(0) = 2/(2 + x) and S11(0) = x/(2 + x).
+- |S11|² + |S21|² ≤ 1 and S11 = S22 at every frequency, with vias and every loss on
+  (passivity and symmetry).
+- A line long enough to overflow cosh still returns finite S-parameters.
+
+_Group delay._
+
+```
+τ_g(f) = −(1/2π) d arg S21 / df
+       ≈ −arg(S21(f + h) · conj S21(f − h)) / (2π · 2h),
+h      = min(10⁻⁴ f, 1 / (64 · ℓ √max(ε(0), εr) / c))
+```
+
+`groupDelayAt`. The phase difference between the two points is taken as the argument of
+their ratio. With 2h at most 1/32 of the inverse of the bound on the line's delay, that
+difference is about π/16 for a delay at the bound, far from wrapping, so no unwrapping is
+needed and a sparse frequency grid is safe. A matched lossless line returns ℓ√εr/c
+(`losslessDelay`) to within 10⁻⁶ relative. With dielectric loss alone, the group delay
+lies between ℓ√ε∞/c and ℓ√ε(0)/c at every frequency (asserted).
+
+_Breakdown curves._ M4's conductor-only and dielectric-only curves, and the smooth,
+Hammerstad and Huray curves, are the same route with the other mechanism forced off and
+the one shown **forced on**, whatever the channel panel says. The figure says so when a
+mechanism is off in the route. Loss in dB very nearly adds between the two mechanisms
+(within 2 % at Nyquist on the default route, asserted), because the cross-term in γ is
+second order in the losses.
+
+### 13.5 Low-loss attenuation formulas
+
+```
+α_c ≈ Re Z_c(f, real K) / (2 Z0)                      Np/m
+α_d ≈ π f √ε′ tanδ / c   (= G′ Z0 / 2, homogeneous)   Np/m
+IL  ≈ (20/ln 10) (α_c + α_d) ℓ = 8.686 (α_c + α_d) ℓ  dB
+```
+
+`conductorAttenuation`, `dielectricAttenuation`, and `approxLossDb` in the job, which is
+M4's "low-loss formula" trace and the source of the materials table.
+
+_Derivation._ Expand γ = √((R′ + jωL′)(G′ + jωC′)) to first order in R′/ωL′ and
+G′/ωC′: α ≈ R′/(2Z0) + G′Z0/2. With C′ = C_vac ε′, G′ = ωC_vac ε′ tanδ and
+Z0 = 1/(v C′), where v = c/√ε′, the dielectric term is π f √ε′ tanδ / c.
+
+**Error.** α_c neglects the internal inductance, which raises the line impedance by a
+fraction of about R′/(2ωL′), so it overstates the exact value by that fraction: about
+1.5 % for a 100 µm trace at 2 GHz. Both formulas omit the vias and the mismatch between
+Z0(f) and the ports. The tests assert agreement with the exact insertion loss within 2 %
+at Nyquist on the default route. At low frequency, where R′ is no longer small against
+ωL′, the formula departs from the exact curve, and M4 shows the two together so the
+departure is visible.
+
+`NEPER_TO_DB` = 20/ln 10; dB/in uses `METRES_PER_INCH` = 0.0254 (exact).
+
+### 13.6 Pulse, step and bit stream
+
+```
+P_out(f) = T sinc(fT) e^(−jπfT) · H_edge(f) · S21(f) · e^(−j2πf t0)
+p_out(t) = F⁻¹{P_out}          s_out[i] = p_out[i] + s_out[i − N_ui]
+v(t)     = (A/2) Σ_k a_k p_out(t − kT),   a_k ∈ {−1, +1}
+```
+
+`pulseFromSpectrum`, `stepFromPulse`, `lossyJob.run`.
+
+_The pulse._ A unit-height rectangle one UI long has spectrum T sinc(fT) e^(−jπfT).
+Multiplying by the edge response of §3.3 (`edgeResponseOf`) gives the launched pulse with the Scenario's rise time, and multiplying by S21 gives the received
+one. Each FFT bin is divided by Δt so that the inverse FFT returns samples of the
+continuous pulse, and the Nyquist bin is made real so the record is real. The launched
+pulse's area is T and its step settles to 1, both to 10⁻⁹ (asserted). A matched lossless
+line returns the launched pulse shifted by ℓ√εr/c to 10⁻⁹ (asserted).
+
+_The step._ A step is a sum of one-UI pulses, s(t) = Σ_{k≥0} p(t − kT), so on the sampled
+grid s[i] = p[i] + s[i − N_ui].
+
+_The record._ An FFT record is periodic, so the record must outlast the pulse or its tail
+wraps onto its start. It is sized as
+
+```
+lead   = max(4, ⌈8 t_r / T⌉) UI           (the zero-phase edge moves before t0)
+wanted = lead + ⌈ℓ √ε(0) / (c T)⌉ + max(8, tailUis) UI
+N      = min(2¹⁷, nextPow2(wanted · N_ui))
+```
+
+N_ui is halved, not below 8, while the record would exceed 2¹⁷. Two diagnostics are
+returned rather than hidden: `recordTruncated`, when the ceiling cut the record short,
+and `tailResidual`, the largest |p_out| in the last 10 % of the record relative to the
+main cursor. M4 prints a note when either says the record is too short. The wrap is a
+**known approximation**: a slowly settling √f tail is never exactly zero at the end of a
+finite record.
+
+_Earliest arrival._ No energy can travel faster than the high-frequency limit of the
+phase velocity, c/√ε∞: the conductor's internal and roughness reactance grow only as √f,
+so against ωL_ext they vanish as f → ∞, leaving L_ext and C_vac ε∞. So
+
+```
+t_earliest = ℓ √ε∞ / c
+```
+
+(√εr with dielectric loss off). `precursorLeak` is the largest |p_out| before
+first-launched-sample + t_earliest, relative to the main cursor. It is the job's
+causality check, and M4's comparison figure plots that window for causal and real
+roughness.
+
+_Delay._ `pulseDelay` is the time between the 50 % crossings of the launched and received
+steps, each at half the level it reaches in the record, as a scope's delay measurement
+takes 50 % of the settled top. Crossings are linearly interpolated (`risingCrossing`),
+which on a lossless line is good to 10⁻² of a sample (asserted). If a crossing is not
+found, the difference of plateau centres is used. It is never shorter than
+t_earliest (asserted).
+
+_Cursors._ The main cursor is the received pulse at the centre of its flat top
+(`plateauCentre`, the middle of the run of samples within 10⁻⁶ of the peak, relative), normalised to the
+launched pulse's height. Pre- and post-cursors are samples whole UIs either side
+(`PRE_CURSORS` = 2, `POST_CURSORS` = 8). Two summary figures follow:
+
+```
+isiSum             = Σ_{k≠0} |c_k| / |c_0|          (over every UI in the record)
+peakDistortionEye  = c_0 − Σ_{k≠0} |c_k|           (c_k normalised to the launched height)
+```
+
+Sampling at the plateau centre rather than at the pulse's true peak is a convention. It
+matches a receiver sampling in the middle of the bit, and it is how M5 folds the eye.
+
+_Bit stream._ By linearity and time invariance, the received stream is the superposition
+above, with the pattern from §5 mapped to ±1 and A/2 the Scenario's half swing. Before the
+displayed bits, the job superposes as many bits of warm-up as the record is long in UIs,
+so every displayed bit carries the full history the pulse can remember. The received
+stream is shifted back by round(pulseDelay/Δt) samples so that it overlays the launched
+one; the overlay uses that rounded value. The worst centre level (`worstCentreLevel`, in
+the M4 plots) is the minimum over displayed bits of a_k · v(centre of bit k)/(A/2), where 1
+is a perfect sample and below 0 a slicer at zero decides the bit wrongly. With a matched
+lossless line and a delay of a whole number of samples, the received stream equals the
+launched one to 10⁻⁹ (asserted).
+
+Assumptions for the whole of §13.6: a linear, time-invariant channel between ideal 50 Ω
+ports. The driver impedance and the receiver termination from the Scenario are not
+applied to the lossy route, which is recorded in PROGRESS.md.
+
+---
+
+## 14. Open items
 
 Everything raised for the Milestone 1 gate is closed. Kept here with its resolution,
 because a decision with no record is a decision someone re-opens by accident.
