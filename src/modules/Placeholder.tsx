@@ -14,6 +14,7 @@
  */
 
 import { getModule } from '../content/modules';
+import { repoDocumentUrl, type RepoDocument } from '../content/repo';
 import { Callout } from '../ui/Callout';
 
 export function Placeholder({ moduleId }: { moduleId: string }): JSX.Element {
@@ -41,10 +42,19 @@ export function Placeholder({ moduleId }: { moduleId: string }): JSX.Element {
       <p>{meta.question}</p>
 
       <p className="text-micro text-lo">
-        The course outline, what is built, what is stubbed and every known inaccuracy are tracked in
-        <span className="readout"> PROGRESS.md</span>; every formula the site implements is derived, sourced
-        and bounded in <span className="readout">PHYSICS.md</span>.
+        The course outline, what is built, what is stubbed and every known inaccuracy are tracked in{' '}
+        <DocLink file="PROGRESS.md" />; every formula the site implements is derived, sourced and bounded in{' '}
+        <DocLink file="PHYSICS.md" />. Both open on GitHub in a new tab.
       </p>
     </>
+  );
+}
+
+/** A repository document, which is not part of the build and so has to be linked. */
+function DocLink({ file }: { file: RepoDocument }): JSX.Element {
+  return (
+    <a className="readout" href={repoDocumentUrl(file)} target="_blank" rel="noopener noreferrer">
+      {file}
+    </a>
   );
 }

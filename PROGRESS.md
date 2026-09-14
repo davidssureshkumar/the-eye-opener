@@ -32,13 +32,13 @@ Milestone 5.
 
 ## Milestone 3 — done
 
-**1651 tests across 38 files, all passing.** `npm run verify` is clean end to end.
-Milestone 3 added 79 tests in three new files, the first file in `src/sim/`, a new
+**1653 tests across 39 files, all passing.** `npm run verify` is clean end to end.
+Milestone 3 added 81 tests in four new files, the first file in `src/sim/`, a new
 job, and the third entry in `BODIES`.
 
 | Layer          | Tests | Change |
 | -------------- | ----- | ------ |
-| `src/content`  | 755   | —      |
+| `src/content`  | 757   | +2     |
 | `src/dsp`      | 275   | —      |
 | `src/plots`    | 265   | —      |
 | `src/state`    | 137   | —      |
@@ -106,6 +106,11 @@ and offers one button to switch, which pushes a history entry. M3 uses it for th
 line; M2 now uses it for the lumped RLC above its damping section.
 
 ### Fixed
+
+Unwritten modules' placeholder pages named PROGRESS.md and PHYSICS.md as plain text,
+which a reader of the site cannot open. They now link to the files on GitHub
+(`src/content/repo.ts`), opening in a new tab; a test fails if either file is renamed
+or removed. These are ordinary links, not requests the site makes.
 
 The help text for **Far-end C** said a capacitive far end reflects like an open at low
 frequency. It reflects like the load resistance alone; for a matched resistor that is
