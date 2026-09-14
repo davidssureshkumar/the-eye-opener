@@ -8,6 +8,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { runJob } from '../../../dsp/jobs';
+import { launchedLevel } from '../../../dsp/jobs/lossy-job';
 import { PRE_CURSORS, type LossyResult } from '../../../dsp/jobs/lossy-job';
 import { validateChrome } from '../../../plots/chrome';
 import { colorSequence, recorder, surfaceOf } from '../../../plots/__tests__/recorder';
@@ -328,7 +329,7 @@ describe('bit stream figure', () => {
   it('samples every UI centre at the launched level through a lossless line, less through a lossy one', () => {
     const s = scenario(LOSSLESS);
     const lossless = job(s);
-    const level = s.source.amplitude / 2;
+    const level = launchedLevel(s.source.amplitude);
     // Through a matched lossless line only the fraction of a sample the delay
     // rounding removes, and the launched edge's own tails, keep this off 1.
     expect(worstCentreLevel(lossless, level)).toBeGreaterThan(0.95);

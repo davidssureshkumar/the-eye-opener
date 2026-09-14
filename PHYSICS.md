@@ -1313,7 +1313,7 @@ departure is visible.
 ```
 P_out(f) = T sinc(fT) e^(−jπfT) · H_edge(f) · S21(f) · e^(−j2πf t0)
 p_out(t) = F⁻¹{P_out}          s_out[i] = p_out[i] + s_out[i − N_ui]
-v(t)     = (A/2) Σ_k a_k p_out(t − kT),   a_k ∈ {−1, +1}
+v(t)     = (A/4) Σ_k a_k p_out(t − kT),   a_k ∈ {−1, +1}
 ```
 
 `pulseFromSpectrum`, `stepFromPulse`, `lossyJob.run`.
@@ -1378,19 +1378,22 @@ Sampling at the plateau centre rather than at the pulse's true peak is a convent
 matches a receiver sampling in the middle of the bit, and it is how M5 folds the eye.
 
 _Bit stream._ By linearity and time invariance, the received stream is the superposition
-above, with the pattern from §5 mapped to ±1 and A/2 the Scenario's half swing. Before the
+above, with the pattern from §5 mapped to ±1. A is `source.amplitude`, the open-circuit
+swing of §12.3, here behind the 50 Ω port: the port takes half, so the launched wave is A/2
+peak to peak and each bit's level is A/4 (`launchedLevel`). Before the
 displayed bits, the job superposes as many bits of warm-up as the record is long in UIs,
 so every displayed bit carries the full history the pulse can remember. The received
 stream is shifted back by round(pulseDelay/Δt) samples so that it overlays the launched
 one; the overlay uses that rounded value. The worst centre level (`worstCentreLevel`, in
-the M4 plots) is the minimum over displayed bits of a_k · v(centre of bit k)/(A/2), where 1
+the M4 plots) is the minimum over displayed bits of a_k · v(centre of bit k)/(A/4), where 1
 is a perfect sample and below 0 a slicer at zero decides the bit wrongly. With a matched
 lossless line and a delay of a whole number of samples, the received stream equals the
 launched one to 10⁻⁹ (asserted).
 
 Assumptions for the whole of §13.6: a linear, time-invariant channel between ideal 50 Ω
-ports. The driver impedance and the receiver termination from the Scenario are not
-applied to the lossy route, which is recorded in PROGRESS.md.
+ports, which stand in for a 50 Ω source and a 50 Ω receiver. The Scenario's driver
+impedance and receiver termination are not applied to the lossy route, by decision at gate
+4a, which is recorded in PROGRESS.md.
 
 ---
 

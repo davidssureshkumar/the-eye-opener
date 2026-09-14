@@ -195,7 +195,7 @@ export const CONTROL_HELP: Record<string, ControlHelp> = {
   'source.amplitude': {
     label: 'Swing',
     unit: 'V',
-    what: 'Single-ended peak-to-peak voltage at the driver, before any channel loss.',
+    what: 'Single-ended peak-to-peak open-circuit voltage of the driver: the swing it would make into no load. Into a line or a termination it is divided by the driver impedance and what it drives.',
     why: 'Sets the numerator of every margin ratio. Increasing it raises the signal and the crosstalk it injects into neighbours in equal measure.',
     see: ['eye-height', 'crosstalk', 'q-factor'],
     illustrative: true,

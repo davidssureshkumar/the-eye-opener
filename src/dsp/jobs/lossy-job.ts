@@ -19,9 +19,11 @@
  * Modelling choices a reader needs to know, all stated on screen:
  *
  *   - The line sits between 50 ohm reference ports, so S21 is the ratio of the
- *     far-end wave to the incident wave. The launched waveform is that incident
- *     wave, swinging +/- amplitude / 2. The driver impedance and receiver
- *     termination of the Scenario are not applied here; M3 is where they act.
+ *     far-end wave to the incident wave. `source.amplitude` is the open-circuit
+ *     swing, as in M3, here behind the 50 ohm port, so the launched waveform is the
+ *     incident wave, half of it: +/- amplitude / 4 (`launchedLevel`). The driver
+ *     impedance and receiver termination of the Scenario are not applied here; M3
+ *     is where they act.
  *   - The DFT is periodic. A tail longer than the record wraps round and appears
  *     before the arrival; the job measures it and reports it as `precursorLeak`
  *     and `tailResidual` rather than hiding it.
@@ -197,6 +199,15 @@ export interface LossyResult {
   tailResidual: number;
   /** Whether the sample ceiling cut the record shorter than asked. */
   recordTruncated: boolean;
+}
+
+/**
+ * Peak level of the launched wave, volts, for an open-circuit swing `amplitude`
+ * peak to peak behind a 50 ohm reference port: the port halves the swing, and the
+ * level is half of that, amplitude / 4.
+ */
+export function launchedLevel(amplitude: number): number {
+  return amplitude / 4;
 }
 
 /** `n` points from `f0` to `f1`, evenly spaced in log frequency. */
@@ -443,7 +454,7 @@ export const lossyJob: JobDefinition<LossyParams, LossyResult> = {
     const warm = recordUis;
     const allBits = generateBits(patternSpecOf(src.pattern), warm + shown);
     const nrz = bitsToNrz(allBits);
-    const level = src.amplitude / 2;
+    const level = launchedLevel(src.amplitude);
     const length = shown * spu;
     const streamIn = new Float64Array(length);
     const streamOut = new Float64Array(length);

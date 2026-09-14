@@ -11,7 +11,13 @@
  * the axis title and the metric label say which one each number follows.
  */
 
-import { PRE_CURSORS, RETURN_LOSS_CAP_DB, plateauCentre, type LossyResult } from '../../dsp/jobs/lossy-job';
+import {
+  PRE_CURSORS,
+  RETURN_LOSS_CAP_DB,
+  launchedLevel,
+  plateauCentre,
+  type LossyResult,
+} from '../../dsp/jobs/lossy-job';
 import { semantic, signal, surface as ink } from '../../design/tokens';
 import type { Surface } from '../../plots/canvas';
 import type { ChromeSpec, MetricSpec } from '../../plots/chrome';
@@ -895,14 +901,14 @@ export function worstCentreLevel(r: LossyResult, level: number): number {
 }
 
 export interface StreamOptions {
-  /** Launched swing, volts peak to peak. */
+  /** The Scenario's open-circuit swing, volts peak to peak. The launched level is `launchedLevel` of it. */
   amplitude: number;
 }
 
 /** The launched bit stream and what arrives, with the delay taken out so they overlay. */
 export function streamRender(r: LossyResult, o: StreamOptions): (s: Surface) => PlotRender {
   const spu = r.samplesPerUi;
-  const level = o.amplitude / 2;
+  const level = launchedLevel(o.amplitude);
   const [lo, hi] = extent([r.streamIn, r.streamOut]);
   const bound = Math.max(Math.abs(lo), Math.abs(hi), level) * 1.1;
   const domain = niceDomain([-bound, bound], 6);

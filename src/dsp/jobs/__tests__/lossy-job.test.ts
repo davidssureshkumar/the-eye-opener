@@ -135,7 +135,9 @@ describe('a matched lossless line', () => {
     expect(maxAbsDiff(r.streamOut, r.streamIn)).toBeLessThan(1e-9 * s.source.amplitude);
     let swing = 0;
     for (const v of r.streamIn) swing = Math.max(swing, Math.abs(v));
-    expect(swing).toBeGreaterThan(0.4 * s.source.amplitude);
+    // An open-circuit swing A behind a 50 ohm port launches a wave of A/2 peak to peak.
+    expect(swing).toBeGreaterThan(0.2 * s.source.amplitude);
+    expect(swing).toBeLessThanOrEqual(0.25 * s.source.amplitude * (1 + 1e-6));
   });
 });
 

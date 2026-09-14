@@ -656,8 +656,10 @@ a consistent extrapolation, not a laminate measurement. PHYSICS.md §13.3.
 S-parameters, pulses and the bit stream are computed between ideal 50 Ω reference
 ports. The Scenario's driver impedance and far-end termination are not applied to the
 lossy route, so M4 shows loss and not mismatch on top of it, except for the line's own
-Z0 and the vias. The launched level is half the Scenario amplitude. This interacts with
-open question 4, which asks what `source.amplitude` means.
+Z0 and the vias. This was decided at gate 4a and holds for gate 4b as well. The ports
+stand in for a 50 Ω source and receiver. `source.amplitude` is the open-circuit swing
+(question 4, closed), so the launched wave is half of it, ±A/4 per bit
+(`launchedLevel`).
 
 ### 16. Roughness is added to the surface impedance
 
@@ -842,22 +844,35 @@ and the wrap is measured and reported rather than assumed away.
 
 ---
 
-## Open questions — one
-
-### 4. What does `source.amplitude` mean? — **open**
-
-M3 reads it as the **open-circuit** swing of an ideal source behind `source.sourceZ`.
-That is the only reading defined before a load is known, and it is what the line
-equations need. The alternative is the swing delivered into a stated load, which is
-how a driver's output is often quoted. The two differ by the divider: at the default
-40 Ω driver into 50 Ω, the launched wave is 5/9 of the open-circuit value. Nothing before M3 uses the driver impedance, so M1 and M2 are unaffected; M3 onward are. If the Scenario should mean
-swing-into-load, the job divides by the divider at one place and the prose of M3's
-equation 3.4 changes. **Question for the gate:** keep open-circuit, or change it?
+## Open questions — none
 
 ### Closed
 
-All three raised at the Milestone 1 gate are closed. The resolutions are kept rather
-than deleted, because a decision with no record is one somebody re-opens by accident.
+All questions raised at gates so far are closed. The resolutions are kept rather than
+deleted, because a decision with no record is one somebody re-opens by accident.
+
+### 4. What does `source.amplitude` mean? — **closed at gate 4a: the open-circuit swing**
+
+Asked at the Milestone 3 gate. The choice was delegated ("choose the best"), and the
+Scenario keeps the **open-circuit** swing of an ideal source behind its impedance.
+Reasons:
+
+- It is the only reading defined before a load is known. A swing quoted into a load
+  changes meaning every time the load does, and this course changes loads constantly.
+- It is what the line equations need. M3's launch divider (equation 3.4) takes it
+  directly.
+- It matches how a push-pull memory driver is built: a rail swing behind a
+  programmable output impedance. The voltage at a pin is then a consequence of that
+  impedance and what the pin drives, which is the point M3 makes.
+
+M4 was not consistent with it: its job launched ±A/2 into a 50 Ω port, which is the
+incident wave of a source with twice the swing. It now launches ±A/4 through one exported
+function, `launchedLevel`, which the job and the stream figure share. Equation 4.12 and
+PHYSICS.md §13.6 say A/4, and M4's prose says why. Metrics normalised to the launched
+level (cursors, the worst centre level) are unchanged; volts on the stream figure halve.
+The help text for **Swing** now says open-circuit.
+
+Also decided at gate 4a: the lossy route stays between 50 Ω ports in gate 4b (item 15).
 
 ### 1. Gibbs overshoot figure — **closed: the exact value**
 
@@ -913,5 +928,5 @@ Gate 4b completes M4 with measured channels:
 - fibre weave and intra-pair skew;
 - the silicon loss-budget callout.
 
-Open question 4 is still open, and gate 4a's 50 Ω ports (item 15) sidestep it rather
-than answer it.
+No questions are open. Gate 4a's review changed nothing on the page except the amplitude
+convention above.

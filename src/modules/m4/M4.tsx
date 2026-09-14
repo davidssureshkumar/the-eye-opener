@@ -684,8 +684,8 @@ export function M4({ moduleId }: { moduleId: string }): JSX.Element {
       </p>
 
       <MathBlock
-        tex="v(t) = \frac{A}{2}\sum_k a_k\,p_{\mathrm{out}}(t - kT), \qquad a_k \in \{-1, +1\}"
-        label="The received voltage equals A over two times the sum over k of a k times the output pulse delayed by k T, with a k equal to minus one or plus one"
+        tex="v(t) = \frac{A}{4}\sum_k a_k\,p_{\mathrm{out}}(t - kT), \qquad a_k \in \{-1, +1\}"
+        label="The received voltage equals A over four times the sum over k of a k times the output pulse delayed by k T, with a k equal to minus one or plus one"
         tag="4.12"
         source="PHYSICS.md §13.6. Implemented in src/dsp/jobs/lossy-job.ts, lossyJob.run()."
       />
@@ -780,9 +780,11 @@ export function M4({ moduleId }: { moduleId: string }): JSX.Element {
 
       <p>
         Finally, the question this site started with. Here is a stretch of the pattern in the transmitter
-        panel as it was launched, and as it arrived, shifted back by the delay so the bits line up. The worst
-        centre-of-bit level is the pattern&rsquo;s own peak distortion: the bit that has the most unlucky
-        history.
+        panel as it was launched, and as it arrived, shifted back by the delay so the bits line up. The swing
+        in the transmitter panel is the driver&rsquo;s open-circuit swing <TeX tex="A" />, as in M3; behind a
+        50 ohm port it launches half of that, which is why equation 4.12 has <TeX tex="A/4" /> for the level
+        of each bit. The worst centre-of-bit level is the pattern&rsquo;s own peak distortion: the bit that
+        has the most unlucky history.
       </p>
 
       {data ? (
