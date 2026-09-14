@@ -888,7 +888,13 @@ export function precursorRender(causal: LossyResult, real: LossyResult): (s: Sur
  * level, sign-corrected for the bit sent. 1 is a perfect sample; below 0 a slicer at
  * zero would decide the bit wrongly.
  */
-export function worstCentreLevel(r: LossyResult, level: number): number {
+/** What the stream figure reads from a job; the lossy and the measured result both carry it. */
+export type StreamSource = Pick<
+  LossyResult,
+  'samplesPerUi' | 'bits' | 'streamIn' | 'streamOut' | 'mainCursor' | 'pulseDelay' | 'dt'
+>;
+
+export function worstCentreLevel(r: StreamSource, level: number): number {
   const spu = r.samplesPerUi;
   let worst = Infinity;
   for (let b = 0; b < r.bits.length; b++) {
@@ -906,7 +912,7 @@ export interface StreamOptions {
 }
 
 /** The launched bit stream and what arrives, with the delay taken out so they overlay. */
-export function streamRender(r: LossyResult, o: StreamOptions): (s: Surface) => PlotRender {
+export function streamRender(r: StreamSource, o: StreamOptions): (s: Surface) => PlotRender {
   const spu = r.samplesPerUi;
   const level = launchedLevel(o.amplitude);
   const [lo, hi] = extent([r.streamIn, r.streamOut]);

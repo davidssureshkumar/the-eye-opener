@@ -69,7 +69,7 @@ export const MODULES: ModuleMeta[] = [
     summary:
       'Skin effect, dielectric loss and copper roughness, each with its own frequency dependence. RLGC to ABCD to S-parameters, insertion loss in dB, and Touchstone import for a measured channel.',
     milestone: 4,
-    status: 'in-progress',
+    status: 'done',
   },
   {
     id: 'm5',

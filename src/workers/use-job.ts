@@ -20,13 +20,23 @@
  * Progress is throttled to animation frames. A job that reports forty times in
  * eighty milliseconds would otherwise cause forty renders of a progress bar, and
  * the renders would cost more than the ticks are worth.
+ *
+ * Each hook has a client, and so a worker, of its own. A client supersedes its
+ * previous request whatever job that was, so two plots sharing one would cancel
+ * each other whenever a control changed both, and the cancelled one would wait for
+ * a result that never came. A page has a handful of these hooks, not hundreds.
+ *
+ * Params may carry typed arrays - a measured network, for one. They are keyed by
+ * identity, not contents: a caller holds a loaded file in state and passes the same
+ * array until the file changes, and hashing megabytes on every render would cost
+ * more than the job.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { JobKind, JobParams, JobResults } from '../dsp/jobs';
 import type { JobProgress } from '../dsp/jobs/types';
 import type { Scenario } from '../state/scenario';
-import { JobCancelled, JobClient, sharedJobClient } from './client';
+import { JobCancelled, JobClient } from './client';
 
 export interface JobState<R> {
   /** The most recent successful result, kept while the next one computes. */
@@ -46,8 +56,27 @@ export interface JobState<R> {
 export interface UseJobOptions {
   /** Skip running at all. For a plot that is off screen or behind a closed panel. */
   enabled?: boolean;
-  /** Supply a client, for tests. Defaults to the shared one. */
+  /** Supply a client, for tests. Defaults to one owned by this hook. */
   client?: JobClient;
+}
+
+/** Identity tokens for typed arrays in params, so a key changes exactly when an array is replaced. */
+const arrayTokens = new WeakMap<object, number>();
+let nextArrayToken = 1;
+
+/** A string that changes when params change: by value for plain data, by identity for typed arrays. */
+export function paramsKeyOf(params: unknown): string {
+  return JSON.stringify(params, (_key, value: unknown) => {
+    if (ArrayBuffer.isView(value)) {
+      let token = arrayTokens.get(value);
+      if (token === undefined) {
+        token = nextArrayToken++;
+        arrayTokens.set(value, token);
+      }
+      return { $array: token };
+    }
+    return value;
+  });
 }
 
 export function useJob<K extends JobKind>(
@@ -67,13 +96,22 @@ export function useJob<K extends JobKind>(
   // Params are compared by value, not identity: a caller that builds its params
   // object inline - which is the natural way to write the call - would otherwise
   // re-run the job on every render forever.
-  const paramsKey = JSON.stringify(params);
+  const paramsKey = paramsKeyOf(params);
+  // The params object that produced the key, handed to the job as it is, since a
+  // JSON round trip would turn its typed arrays into plain objects.
+  const paramsRef = useRef(params);
+  paramsRef.current = params;
   const scenarioKey = JSON.stringify(scenario);
 
   const clientRef = useRef<JobClient | null>(null);
+  const owned = options.client === undefined;
   if (options.client) clientRef.current = options.client;
-  else if (!clientRef.current) clientRef.current = sharedJobClient();
+  else if (!clientRef.current) clientRef.current = new JobClient();
   const client = clientRef.current;
+
+  // Release this hook's worker when the component goes. The client starts a new one
+  // if it is used again, which is what a development double mount does.
+  useEffect(() => (owned ? () => client.dispose() : undefined), [client, owned]);
 
   const refresh = useCallback(() => setNonce((n) => n + 1), []);
 
@@ -97,7 +135,7 @@ export function useJob<K extends JobKind>(
     };
 
     client
-      .run(kind, JSON.parse(scenarioKey) as Scenario, JSON.parse(paramsKey) as Partial<JobParams[K]>, {
+      .run(kind, JSON.parse(scenarioKey) as Scenario, paramsRef.current, {
         onProgress,
       })
       .then((result) => {

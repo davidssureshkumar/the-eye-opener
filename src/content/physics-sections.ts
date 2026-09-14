@@ -67,7 +67,14 @@ export const PHYSICS_SECTIONS: Readonly<Record<string, string>> = {
   '13.4': '134-rlgc-abcd-s-parameters-and-group-delay',
   '13.5': '135-low-loss-attenuation-formulas',
   '13.6': '136-pulse-step-and-bit-stream',
-  '14': '14-open-items',
+  '14': '14-measured-channels',
+  '14.1': '141-the-network-renormalisation-passivity-and-reciprocity',
+  '14.2': '142-reading-touchstone-files',
+  '14.3': '143-wiring-and-mixed-mode',
+  '14.4': '144-synthetic-networks-the-woven-pair-and-the-coupled-pair',
+  '14.5': '145-from-a-sampled-transfer-to-a-pulse-interpolation-causality-minimum-phase',
+  '14.6': '146-insertion-loss-deviation-and-integrated-crosstalk-noise',
+  '15': '15-open-items',
 };
 
 /** Link to a numbered section of PHYSICS.md, or undefined if there is no such section. */

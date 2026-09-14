@@ -14,12 +14,14 @@ class of interface and are labelled illustrative; they are not specification
 figures. Where a _polynomial_ or a _definition_ comes from a public standard
 (ITU-T O.150, IEEE 802.3), the standard is named.
 
-Scope: this file covers the layers implemented through Milestone 4a — DSP,
-plotting mathematics, scenario state, the lossless transmission line (§12), and
-the lossy line: skin effect, roughness, dielectric loss, S-parameters and the
-far-end pulse (§13). The remaining channel physics (measured S-parameters,
-differential pairs, crosstalk, equalization) is specified in the module plan and
-will be added to this file as each module is built, not before.
+Scope: this file covers the layers implemented through Milestone 4 — DSP,
+plotting mathematics, scenario state, the lossless transmission line (§12), the
+lossy line: skin effect, roughness, dielectric loss, S-parameters and the far-end
+pulse (§13), and measured channels: Touchstone files, mixed mode, glass weave,
+insertion loss deviation, crosstalk noise, passivity and causality (§14). The
+remaining physics (equalization, clock recovery, BER and the memory interfaces) is
+specified in the module plan and will be added to this file as each module is
+built, not before.
 
 ---
 
@@ -1397,7 +1399,269 @@ impedance and receiver termination are not applied to the lossy route, by decisi
 
 ---
 
-## 14. Open items
+## 14. Measured channels
+
+Module 4, second half. Implemented in `src/sim/touchstone/`; the job is
+`src/dsp/jobs/measured-job.ts`, the page `src/modules/m4/Measured.tsx` and the figures
+`src/modules/m4/measured-plots.ts`. The data model is one `Network` for a file and for
+a synthesised example alike, so everything downstream of it cannot tell which it was
+given.
+
+Sources for the whole section: D. M. Pozar, _Microwave Engineering_, 4th ed. (Wiley,
+2012), ch. 4 (S-parameters, power waves, reciprocity and losslessness); K. Kurokawa,
+"Power waves and the scattering matrix", _IEEE Trans. Microwave Theory Tech._ 13(2),
+1965 (renormalisation); D. E. Bockelman and W. R. Eisenstadt, "Combined differential
+and common-mode scattering parameters", _IEEE Trans. Microwave Theory Tech._ 43(7),
+1995 (mixed mode); A. V. Oppenheim and R. W. Schafer, _Discrete-Time Signal Processing_,
+3rd ed. (Pearson, 2010), ch. 5 (minimum phase); Touchstone File Format Specification,
+versions 1.1 and 2.0 (IBIS Open Forum), for the file syntax only. IEEE 802.3 Annex 69B
+is cited by number for the method of §14.6; no value is taken from it. No JEDEC material
+and no datasheet value is used; the weave, coupling and route values are illustrative.
+
+### 14.1 The network, renormalisation, passivity and reciprocity
+
+```
+b = S a                               a_i = (V_i + Z_i I_i) / (2√Z_i),  b_i = (V_i − Z_i I_i) / (2√Z_i)
+S' = (Q + P S)(P + Q S)⁻¹              P = diag((Z + Z')/(2√(ZZ'))),  Q = diag((Z − Z')/(2√(ZZ')))
+passive     ⇔  σ_max(S(f)) ≤ 1 at every f
+reciprocal  ⇔  S = Sᵀ                  reported: max_{i<j} |S_ij − S_ji|
+```
+
+`renormalize`, `maxSingularValue`, `reciprocityError`, `matInverse`.
+
+_Storage._ S at frequency index k is stored flat, row first, in two Float64Arrays,
+`re[(kN + i)N + j]`, so a whole file is two transferable buffers. Ports are 0-based in
+code and 1-based on screen.
+
+_Renormalisation._ With real references, writing the waves in Z' in terms of those in
+Z gives a' = (P + QS)a and b' = (Q + PS)a, hence S'. P + QS = P(I − ΓS) with |Γ| < 1 on
+the diagonal, invertible for any passive S; the inverse is Gauss-Jordan with partial
+pivoting. A series resistor moved from 50 Ω to 75 Ω matches its closed form, a 50 Ω
+thru read against 50 Ω and 100 Ω ports gives Γ = 1/3, −Γ and √(1 − Γ²), and a random
+four-port round-trips through [40, 60, 75, 100] Ω, all to 10⁻¹² (asserted). The job
+renormalises to `channel.touchstone.renormalizeTo` before reading anything.
+
+_Passivity._ σ_max² is the largest eigenvalue λ of the Hermitian B = SᴴS. For m = 2ᵖ,
+λᵐ ≤ tr(Bᵐ) ≤ Nλᵐ, so squaring B p times, renormalising by the trace at each step and
+accumulating log tr / 2^step gives λ within a factor N^(1/m) above. With p = 24,
+σ_max is overstated by at most N^(1/2²⁵), which for N = 4 is ln4/2²⁵ ≈ 4.1 × 10⁻⁸ in
+relative terms. The bound is exact, which a power iteration stopped on convergence
+would not give. A lossless four-port stays inside it (asserted); a unitary 2 × 2 gives 1,
+a 1.05 gain 1.05, a diagonal its largest entry and a real upper-triangular 2 × 2 its
+closed form, to 10⁻⁶ (asserted). The job evaluates at most `PASSIVITY_POINTS` = 1000
+frequencies, the sweep decimated evenly, and reports not passive above
+1 + `PASSIVITY_TOLERANCE` = 1 + 10⁻⁶. A gain of 1.1 applied to every entry multiplies
+σ_max by 1.1 to 10⁻⁹ (asserted).
+
+Assumptions: real reference impedances, and only S-parameter data (§14.2).
+
+### 14.2 Reading Touchstone files
+
+`parseTouchstone`, `writeTouchstone`, `portsFromName`.
+
+Version 1 (no keywords; port count from the extension) and version 2 ([Version],
+[Number of Ports], [Number of Frequencies], [Reference], [Matrix Format],
+[Two-Port Data Order]) are read. The rules that matter:
+
+- A two-port file lists S11 S21 S12 S22 in version 1, and as [Two-Port Data Order]
+  says in version 2. Every other port count is row first.
+- Version 1 files above two ports wrap rows over lines, and only the count of numbers
+  says where a frequency ends, so the reader consumes a stream of numbers.
+- A version 1 two-port file may end with noise parameters, which start where the
+  frequency stops increasing; they are skipped and a warning is kept.
+- DB means 20 log₁₀|S|; angles are degrees. A missing option line takes the defaults
+  (GHz, S, MA, R 50) and says so.
+- Lower and upper triangular matrices are filled symmetrically.
+- Y, Z, H and G data and mixed-mode (2.1) files are refused with a message, not
+  converted.
+
+Each rule has a test, and `writeTouchstone` round-trips 1- to 4-port networks in RI, MA
+and DB to 10⁻¹² (asserted). A woven pair written to a file and read back drives the job
+identically, to 10⁻⁹ in dB and in the pulse (asserted). The writer refuses mixed references, which version 1 cannot express.
+The file is read with the File API and held in memory only (`src/state/network-store.ts`);
+the Scenario keeps its name and port count, never its data. At most 12 ports and 64 MB.
+
+### 14.3 Wiring and mixed mode
+
+```
+w(i, j) = mean over the lowest 8 frequencies of (ln|S_ij| + ln|S_ji|) / 2,   floored at ln 10⁻¹²
+thrus   = argmax over perfect matchings M of Σ_{(i,j)∈M} w(i, j)
+
+S_dd = (S_oP,iP − S_oP,iN − S_oN,iP + S_oN,iN) / 2
+S_cd = (S_oP,iP − S_oP,iN + S_oN,iP − S_oN,iN) / 2        common out, differential in
+S_dc = (S_oP,iP + S_oP,iN − S_oN,iP − S_oN,iN) / 2
+S_cc = (S_oP,iP + S_oP,iN + S_oN,iP + S_oN,iN) / 2
+```
+
+`detectTopology`, `modalTransfer`, `mixedModeMatrix`, `channelView`.
+
+_Wiring._ A file does not state which ports are connected. At low frequency a through
+path passes nearly everything and a coupled one nearly nothing, so the thrus are the
+maximum-weight perfect matching of the ports, found exactly by dynamic programming over
+subsets (4096 states for 12 ports). An odd port count leaves out whichever port gives
+the best matching. Each thru's input is its lower-numbered port; lines are ordered by
+input, and consecutive lines form a pair, the first the P leg. Both common four-port
+conventions, 1-2/3-4 and 1-3/2-4, give P = the thru from port 1 (asserted), and an
+eight-port gives two pairs (asserted). The page prints the wiring it found.
+
+_Mixed mode._ With differential and common waves (a_P − a_N)/√2 and (a_P + a_N)/√2 at
+each end, the four transfers above follow. The change of basis is orthogonal, so the
+mixed-mode matrix has the singular values of the single-ended one (asserted to 10⁻⁶),
+and conversion cannot make a passive file look active.
+
+_The view._ `channelView` takes the Scenario's 1-based transmit and receive ports and
+the mixed-mode switch. Differential: the pair containing the transmit port and the pair
+at the far end of its thrus give Sdd21 (through), Sdd11 (reflection), Scd21 (conversion)
+and each leg's own S21; every other pair is an aggressor driven from either end.
+Single-ended: S_rx,tx and S_tx,tx; every port other than those two is an aggressor
+driven at that port, reaching the receiver through S_rx,q. An aggressor driven at the
+receiver's end is near-end crosstalk, one driven at the transmitter's end far-end
+(asserted on the coupled pair: from port 1 to 2, port 3 is far end and port 4 near end).
+What cannot be honoured is reported in plain notes rather than hidden: a differential
+view whose receive port is not at the far end of the pair uses the pair's far end; a
+transmit port on no pair falls back to single-ended; a receive port equal to the
+transmit port is replaced by its thru partner; and a pair of ports that is not a thru is
+shown as the coupled path it is.
+
+Assumptions: the thrus dominate at the lowest measured frequencies, which fails for a
+file whose sweep starts above a coupling resonance or a DC-blocked path.
+
+### 14.4 Synthetic networks: the woven pair and the coupled pair
+
+```
+φ(s, y)  = φ₀ + Δφ cos(2π(y + s sinθ)/p)                         glass fraction, route coordinates
+φ̄(x)    = φ₀ + Δφ sinc(w/p) sinc(D/p) cos(2π(x + D/2)/p),   D = ℓ sinθ,   sinc u = sin(πu)/(πu)
+Dk       = Dk_resin + (Dk_glass − Dk_resin) φ̄
+τ        = ℓ(√Dk_P − √Dk_N)/c                  f_null = 1/(2|τ|)
+|Sdd21|  = |S21| |cos πfτ|,   |Scd21| = |S21| |sin πfτ|         (legs of equal loss)
+
+Z_even = Z₀(1 + K)/(1 − K),   Z_odd = Z₀(1 − K)/(1 + K),   εr,even/odd = εr ± split/2
+```
+
+`meanGlassFraction`, `mixedDk`, `weaveLegs`, `weavePairNetwork`, `modalImpedances`,
+`coupledPairNetwork`.
+
+_Weave._ The glass fraction under a point is modelled as one sinusoid of the weave
+pitch p across the board, a first-harmonic stand-in for the bundle profile. A trace of
+width w whose centre starts at x and drifts sideways by D over the route sees the
+average over its width and length. Averaging cos over a width gives sinc(w/p), and over
+a linear drift gives sinc(D/p) with the phase moved to the drift's midpoint; the closed
+form matches a 400 × 400 numerical average to 10⁻⁵ (asserted). The N leg is the same
+at x + pair pitch. Dk is mixed linearly in the glass fraction, a first-order effective
+medium. A drift of one whole pitch removes the skew to below 10⁻¹⁸ s (asserted).
+
+Each leg is then the §13 lossy line with its own εr, written as a four-port 1 → 2 P,
+3 → 4 N with no coupling between legs. For a lossless pair the differential and common
+transfers follow |cos πfτ| and |sin πfτ| of the P leg's |S21| to 10⁻⁹ (asserted); with
+loss the legs' losses differ slightly and the relation is approximate. The job's measured
+skew, the difference of the legs' step 50 % crossings, is within 0.5 ps of τ, and the
+differential delay within 0.5 ps of the legs' mean (asserted).
+
+_Coupled pair._ A symmetric pair is two uncoupled modes. Even and odd impedances from a
+backward coupling coefficient K as above; each mode is a §13 line, with the modal Dk split
+standing for the inhomogeneous dielectric of microstrip. The four-port is assembled from
+the modal S-parameters, S_same = (S_e + S_o)/2 and S_cross = (S_e − S_o)/2 for each entry.
+It is reciprocal to 10⁻¹⁵ and passive to 10⁻⁹, its differential transfer is the odd mode
+to 10⁻¹² with no conversion, and with no modal split a lossless pair's far-end crosstalk
+falls below a tenth of the split pair's while its near-end does not (asserted).
+
+Assumptions: quasi-TEM legs with no coupling in the woven pair; a sinusoidal weave and
+linear Dk mixing; two-mode propagation in the coupled pair. All values illustrative.
+
+### 14.5 From a sampled transfer to a pulse: interpolation, causality, minimum phase
+
+```
+H(f) = |H|(f) e^{jθ(f)}         |H| and unwrapped θ interpolated linearly between samples
+below f_min: θ extended with the first slope, shifted by 2πn to put θ(0) nearest 0 or π
+above f_max: |H| × raised cosine to f_max(1 + taper), zero after; θ extended with the last slope
+coarse   ⇔  median_k |Δθ_k| > π/2
+
+h = F⁻¹{H · cos²(πf/(2 f_stop))}         on Δt = 1/(2 f_stop)
+E_pre  = Σ_{t < −t_g} h²,   E_post = Σ_{t > t_g} h²,   t_g = 6 × 2/f_stop
+acausal  ⇔  E_pre > 10⁻⁶ Σ h²  and  E_pre > 0.05 E_post
+```
+
+`unwrappedPhase`, `transferInterpolant`, `impulseOf`, `minimumPhaseFromMagnitude` (§10.2).
+
+_Interpolation._ Real and imaginary parts of a delayed thru rotate many times between
+samples, and interpolating them shrinks the magnitude, so magnitude and unwrapped phase
+are interpolated instead. A 1.3 ns delay sampled every 10 MHz is reproduced between
+samples, below the first and at DC to 10⁻⁴, with its sweep delay to 10⁻¹⁵ s (asserted).
+Below f_min the phase branch is chosen so that the extension reaches 0 or π at DC; the
+residual and whether the path inverts are reported, and an inverting path with a phase
+several turns off is recovered (asserted). Above f_max the roll-off keeps the delay of
+what survives, and the transfer is conjugate-symmetric in f so the pulse is real
+(asserted).
+
+_Coarse sweeps._ A sweep too coarse for the delay rotates by a large step at every sample,
+so the median step is flagged above π/2 (`COARSE_PHASE_STEP`). The largest step is
+reported but is not the test: the null of a skewed pair is a genuine phase jump of π
+between two fine samples, and is not flagged (asserted). This replaced a largest-step
+criterion during gate 4b.
+
+_Causality screen._ The impulse response is computed on the data's own grid and
+band-limited by a raised cosine, whose kernel smears even a causal response slightly
+into negative time; hence the guard. A causal response puts almost nothing before −t_g,
+a magnitude-only one is symmetric about zero (E_pre/E_post > 0.5, asserted) and a
+conjugated one is the causal response mirrored (E_pre > 0.5 of the whole, asserted). A
+pure delay has E_pre < 10⁻⁸ and a causal lossy line < 10⁻⁷ (asserted). A delay inside the
+guard, such as 1 ps, is not flagged (asserted): a response shorter than the band's
+resolution cannot be judged either way, and the page says so.
+It is a screen, not a proof: a transfer can be acausal in a way that leaves the energy
+balance under both thresholds.
+
+_Minimum phase._ On request the job builds the transfer with the same magnitude and
+minimum phase (§10.2), with the log magnitude floored at −120 dB, and drives the pulse through it.
+Its area equals the measured pulse's to 10⁻⁶ and its delay is under a tenth of the
+measured delay (asserted): the delay of a line is phase the magnitude does not record.
+
+_The pulse._ As §13.6, with S21 replaced by the interpolated through transfer: the edge-
+shaped one-UI pulse, its step, the cursors and the superposed bit stream at the launched
+level A/4. The record leads by twice the lossy job's lead, because a conjugated transfer
+puts energy before the launch. For a pair, the P and N legs and the conversion path are
+driven the same way for the skew figure.
+
+Assumptions: a linear, time-invariant network; the measured points carry no noise model;
+what lies above f_max is unknown and is rolled off, not extrapolated.
+
+### 14.6 Insertion loss deviation and integrated crosstalk noise
+
+```
+IL_fit(f) = a₀ + a₁√f + a₂f + a₃f²        (f in GHz, least squares over [f_min, min(f_max, 2 f_N)])
+ILD(f)    = IL(f) − IL_fit(f)              reported: RMS and peak inside the band
+
+S_xt(f)   = 2L²T sinc²(fT) |H_tx(f)|² |XT(f)|² / (1 + (f/f_r)⁸)      one-sided, V²/Hz
+σ²        = ∫₀^F S_xt df                   (trapezoidal, density at DC from the first sample)
+σ_total²  = Σ σ_i²                         near-end and far-end totals separately
+```
+
+`insertionLossDeviation`, `crosstalkDensity`, `integratedCrosstalkNoise`, `powerSum`.
+
+_ILD._ Loss of the smooth form is fitted exactly: coefficients of a loss built from the
+four terms are recovered to 10⁻⁸, and a ripple of amplitude A = 0.25 dB added to it
+leaves RMS A/√2 within 0.005 dB and peak A within 0.05 dB (asserted). Fewer than four
+samples in the band is refused. Every sample is weighted equally, which suits the evenly
+spaced sweeps of an analyser. On the synthetic line with no vias the ILD RMS is under
+0.02 dB, and with the Scenario's default vias it is more than three times that
+(asserted).
+
+_ICN._ A random NRZ signal of levels ±L and symbol time T has one-sided density
+2L²T sinc²(fT), whose integral is L². Shaping by the transmit edge (§3.3), the coupling
+|XT| and a fourth-order Butterworth-like receiver bandwidth f_r gives the density above, as
+in the method of IEEE 802.3 Annex 69B. For flat coupling k and no filters, σ = kL less the
+sinc² tail beyond F, σ = kL √(1 − 1/(π²FT)) within 5 × 10⁻⁴ relative at F = 4/T and
+16/T (asserted). The receiver filter and the edge only lower σ, and at f = f_r the
+receiver halves the density (asserted). The job's per-aggressor figure equals this
+integral to 10⁻¹² and its near and far totals add in power (asserted). L is the launched level A/4,
+every aggressor is assumed to swing as the victim does, f_r = 0.75/T by default, and F is
+the last frequency of the sweep.
+
+Assumptions: independent, uncorrelated aggressors with the victim's pattern statistics
+and edge; a crosstalk figure of merit, not a time-domain crosstalk simulation.
+
+---
+
+## 15. Open items
 
 Everything raised for the Milestone 1 gate is closed. Kept here with its resolution,
 because a decision with no record is a decision someone re-opens by accident.

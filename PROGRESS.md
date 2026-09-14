@@ -3,26 +3,26 @@
 What is done, what is stubbed, what is known to be inaccurate, and what is waiting
 on an answer.
 
-Updated at the end of each milestone. Last updated: **2026-09-14**, at gate 4a of
+Updated at the end of each milestone. Last updated: **2026-09-14**, at gate 4b of
 Milestone 4.
 
 ---
 
 ## Milestone status
 
-| #   | Milestone | Covers                             | State                   |
-| --- | --------- | ---------------------------------- | ----------------------- |
-| 1   | Core      | DSP, plots, state, content, shell  | Complete                |
-| 2   | M1 + M2   | Harmonics; ideal edge to real edge | Complete                |
-| 3   | M3        | Transmission lines and reflections | Complete                |
-| 4   | M4        | Loss                               | **4a at gate; 4b next** |
-| 5   | M5        | ISI, eye diagrams, jitter          | Not started             |
-| 6   | M7        | Equalization                       | Not started             |
-| 7   | M6        | Crosstalk, noise, PDN              | Not started             |
-| 8   | M8        | DDR5 / LPDDR5 / HBM                | Not started             |
-| 9   | M9 + M10  | Wireless view; lab measurement     | Not started             |
-| 10  | M11       | Sandbox                            | Not started             |
-| 11  | Polish    | Accessibility, performance, docs   | Not started             |
+| #   | Milestone | Covers                             | State          |
+| --- | --------- | ---------------------------------- | -------------- |
+| 1   | Core      | DSP, plots, state, content, shell  | Complete       |
+| 2   | M1 + M2   | Harmonics; ideal edge to real edge | Complete       |
+| 3   | M3        | Transmission lines and reflections | Complete       |
+| 4   | M4        | Loss                               | **4b at gate** |
+| 5   | M5        | ISI, eye diagrams, jitter          | Not started    |
+| 6   | M7        | Equalization                       | Not started    |
+| 7   | M6        | Crosstalk, noise, PDN              | Not started    |
+| 8   | M8        | DDR5 / LPDDR5 / HBM                | Not started    |
+| 9   | M9 + M10  | Wireless view; lab measurement     | Not started    |
+| 10  | M11       | Sandbox                            | Not started    |
+| 11  | Polish    | Accessibility, performance, docs   | Not started    |
 
 Modules are built in the order above, not in numeric order: equalization (M7) comes
 before crosstalk (M6) because the eye-closure machinery it needs is built in
@@ -30,7 +30,142 @@ Milestone 5.
 
 ---
 
-## Milestone 4a — at gate
+## Milestone 4b — at gate
+
+**1887 tests across 53 files, all passing.** `npm run verify` is clean end to end,
+`npx vite build` bundles, and `npm run goldens` leaves the permalink goldens unchanged.
+Gate 4b added 105 tests in nine new files, a new directory in `src/sim/`, a new job, an
+in-memory store for a loaded file, and the second half of M4, whose status is now `done`.
+
+| Layer          | Tests | Change |
+| -------------- | ----- | ------ |
+| `src/content`  | 789   | —      |
+| `src/dsp`      | 289   | —      |
+| `src/plots`    | 265   | —      |
+| `src/sim`      | 147   | +64    |
+| `src/state`    | 141   | +3     |
+| `src/modules`  | 122   | +27    |
+| `src/dsp/jobs` | 102   | +11    |
+| `src/workers`  | 27    | —      |
+| `src/design`   | 5     | —      |
+
+### M4 — Measured channels (gate 4b)
+
+`src/modules/m4/Measured.tsx`, placed in `M4.tsx` after the length experiment and
+before the bench callout, with its figures in `src/modules/m4/measured-plots.ts` and the
+silicon callout's table in `src/modules/m4/budgets.ts`.
+
+The argument: a model line is one answer to "what did the channel do", and a measured
+file is another, with its own ways of being wrong. The page reads a file the way a
+validation engineer has to, from its wiring to whether it can be trusted, and then
+drives it through the same pulse and bit stream as the model:
+
+- **S-parameters.** Load a `.s1p` to `.s12p` file, or save and reload the page's own
+  synthetic networks. The wiring found in the data is printed, and the reference can be
+  moved.
+- **Differential pairs and mixed mode.** Sdd21, Sdd11, Scd21 and the legs, read from
+  the same file single-ended or differentially.
+- **Fiber weave.** Where a pair sits over the glass and the angle of the route set the
+  intra-pair skew, its null and the mode conversion, with the closed forms read out live
+  and a skew figure stepping through each leg.
+- **Insertion loss deviation.** The four-term fit and what is left.
+- **Crosstalk, as noise.** Each aggressor's coupling and its integrated noise, near end
+  and far end.
+- **Before trusting a file.** Passivity across the sweep and the causality screen in
+  time, with three corruptions (gain, conjugated phase, magnitude only) and a
+  minimum-phase view.
+- **The measured channel, driven.** The launched and received bit stream.
+
+Displayed and implemented (PHYSICS.md §14): the change of reference (4.13), the
+mixed-mode transfers (4.14), the averaged glass fraction and its Dk (4.15), skew, null
+and the differential and common magnitudes (4.16), the ILD fit (4.17), integrated
+crosstalk noise (4.18), passivity (4.19) and the causality screen (4.20).
+
+Every number on the page is evaluated. The weave readouts call `weaveLegs`; the ports,
+wiring, passivity, reciprocity, causality, ILD and ICN readouts come from the job; the
+route table calls `routeBudgets`; the skew self-check's answers are computed from
+1/(2τ). Callouts:
+
+- M4's existing silicon callout now compares three illustrative route classes, a DDR5
+  DIMM-class board route, an LPDDR5 package-on-package route and an HBM silicon
+  interposer link, through the same line model at one rate. It shows length, cross
+  section, skin depth over thickness, DC resistance, loss at DC and at Nyquist, and what
+  each row leaves out. It cites JESD79-5, JESD209-5 and JESD238 by number only. Its
+  point: an interposer line loses much of its budget already at DC, a board route almost
+  none.
+- A `TryThis` setup (route at an angle) and two self-checks (the skew null, and a
+  conjugated vendor file).
+
+**Claims corrected before the gate.** As at 4a, each claim was checked against the
+job before it was written down:
+
+- A draft said HBM routes differential pairs. The callout now says only that the clocks
+  and data strobes of DDR5 and LPDDR5 are differential.
+- A draft attributed the ILD at a steep weave angle to the vias. At 10° the skew null
+  leaves the band and little deviation is left; the prose says that.
+- The default weave skew was described as "most of a UI"; it is about half a UI at the
+  experiment's rate.
+
+### New physics — `src/sim/touchstone/`
+
+- **`network.ts`.** The flat S-matrix storage, change of reference, an exact-bound
+  largest singular value, reciprocity.
+- **`parser.ts`.** Touchstone 1.x and 2.0 reader and writer.
+- **`mixed-mode.ts`.** Wiring by maximum-weight matching, mixed-mode transfers, and the
+  view the job reads: through, reflection, conversion, legs and aggressors.
+- **`examples.ts`.** The woven pair and the coupled pair, built from §13's line.
+- **`to-impulse.ts`.** Magnitude and phase interpolation, the coarse-sweep flag, the
+  impulse response and the causality screen.
+- **`metrics.ts`.** ILD and ICN.
+- **Tests.** 64, against closed forms: a series resistor moved between references, the
+  cosine and sine of a skewed pair, the odd mode of a coupled pair, sinc² tails, a pure
+  delay, and a causal line with its phase conjugated and discarded.
+
+### New job — `measured`
+
+`src/dsp/jobs/measured-job.ts` takes a loaded network, or builds the woven or coupled
+pair, applies a corruption if asked, renormalises, reads the wiring, and builds the view
+the Scenario's ports ask for. It then checks passivity and reciprocity, screens
+causality, fits the ILD, integrates each aggressor's noise, and drives the pulse, step,
+legs, minimum-phase pulse and bit stream as the `lossy` job does. A network written to
+a file and read back drives it identically to 10⁻⁹. The default runs well inside the 2 s
+budget.
+
+### New state — `src/state/network-store.ts`
+
+The parsed file lives here, in memory, and nowhere else. Loading one points the
+Scenario at it: `channel.kind` becomes `touchstone`, and the name, port count and ports
+are set, with mixed mode on for an even count of four or more. This is a push, so the
+back button returns to the previous channel. The Scenario keeps the name after the file
+is forgotten, so a link says which file it needs, and the page says when that file is
+not loaded. `store.ts` gains `getScenario` for this.
+
+### Fixed — plots on one page cancelled each other's jobs
+
+`useJob` used one shared worker client for every hook. A client supersedes its previous
+request whatever job it was, so two figures whose jobs a single control changed would
+cancel each other, and the cancelled one waited for a result that never came. At gate 4a
+this could already stall M4's main figures while the causal/real comparison was on; with
+the measured job on the same page, every Scenario change triggered it. Each hook now
+owns its client and worker and releases it on unmount. Params carrying typed arrays (a loaded network) are keyed by
+identity rather than serialised.
+
+### Changed — the coarse-sweep flag uses the median phase step
+
+The first version flagged a sweep as too coarse when the largest phase step between
+samples passed π/2. The null of a skewed pair is a genuine jump of π between two fine
+samples, so a woven pair whose null fell inside the sweep was flagged. The median step is now the test and the
+largest is still reported. PHYSICS.md §14.5.
+
+### Decisions taken at gate 4a
+
+- **Amplitude:** `source.amplitude` is the open-circuit swing (question 4).
+- **Ports:** the lossy and measured routes both sit between 50 Ω ports (item 15).
+- **Page:** no changes to the 4a sections before 4b.
+
+---
+
+## Milestone 4a — approved
 
 **1782 tests across 44 files, all passing.** Milestone 4 is split into two gates, as
 decided at the Milestone 3 gate. Gate 4a is the loss physics and what it does to an
@@ -531,12 +666,9 @@ emits relative asset paths, confirmed against `vite preview`.
 - **Seven of the eleven module bodies.** `BODIES` holds `m1` to `m4`; M5 through M11
   render `Placeholder`, which names the milestone each is waiting on. The panels
   beside them are live and the controls really write to the Scenario.
-- **M4 is half written.** Gate 4b's sections do not exist yet: Touchstone import,
-  differential pairs and mixed-mode, ILD/ICN, and fibre weave. The page's closing
-  paragraph says they are coming rather than implying the page is complete.
-- **`src/sim/{equalizer,eye,impairments,touchstone}` are empty.** `src/sim/channel`
-  holds the lossless and lossy lines and nothing else. No physics was invented to make
-  the pages look finished.
+- **`src/sim/{equalizer,eye,impairments}` are empty.** `src/sim/channel` holds the
+  lossless and lossy lines and `src/sim/touchstone` the measured-channel path, and
+  nothing else. No physics was invented to make the pages look finished.
 - **No direct numeric entry on a slider.** A reader who wants exactly 187.5 ps has
   to arrive there by stepping. The permalink and the preset list cover the cases
   where an exact value matters today; a typed-entry affordance is a Polish-milestone
@@ -576,8 +708,10 @@ transmission zero — a resonant stub — is not minimum-phase at all and needs 
 phase. Module 4 must say this on screen when the construction is used.
 
 Gate 4a does not use it. The lossy line's S21 carries its own exact phase from the
-ABCD cascade, so no phase is reconstructed from magnitude. The obligation moves to
-gate 4b, where a measured file with suspect or missing phase is the case that needs it.
+ABCD cascade, so no phase is reconstructed from magnitude. Gate 4b uses it as an
+optional view of a measured transfer, and the page says there that a delay, and any
+transmission zero outside the minimum-phase class, is phase the magnitude does not
+record. PHYSICS.md §14.5.
 
 ### 5. Lumped RLC validity
 
@@ -690,11 +824,14 @@ roughly 1.5 % for a 100 µm trace at 2 GHz. Adding the two mechanisms in dB is w
 2 % of the exact loss at Nyquist on the default route. M4 draws the formula over the
 exact curve so the reader can see where it departs. PHYSICS.md §13.5.
 
-### 20. HBM's interposer regime is described, not simulated
+### 20. HBM's interposer regime is tabulated, not dialled up
 
-The controls stop at board dimensions (trace width 25 µm). A fine-line interposer or
-redistribution layer, where resistance competes with ωL′ across the band, is described
-in M4's silicon callout but cannot be dialled up.
+The controls stop at board dimensions (trace width 25 µm). The silicon callout's table
+evaluates an illustrative interposer line of a few micrometres through the same model,
+beside a board and a package route, all at one rate. That model is the §13 line: one
+conductor surface, a homogeneous dielectric and 50 Ω ports, so for a line of that cross
+section it is a rule of thumb, and microbumps, through-silicon vias, balls and
+connectors are left out, as each row says.
 
 ### 21. The material classes are illustrative
 
@@ -707,6 +844,68 @@ not be read as any product's numbers.
 Normalisation, the approximation overlay, the roughness and dielectric views, the
 pulse view, the number of UIs shown and the causal/real comparison are job or view
 parameters, as in item 6.
+
+### 23. Only S-parameter data is imported
+
+Y, Z, H and G files and Touchstone 2.1 mixed-mode files are refused with a message.
+Reference impedances must be real. Twelve ports and 64 MB at most. PHYSICS.md §14.2.
+
+### 24. The wiring of a file is inferred
+
+Thrus are found from the lowest eight frequencies of the sweep. A file whose sweep
+begins above a coupling resonance, or whose through path is DC-blocked, can be wired
+wrongly. The wiring found is printed on the page so the reader can see it.
+PHYSICS.md §14.3.
+
+### 25. The woven pair is a first-order model
+
+A sinusoidal glass fraction, Dk mixed linearly in it, and two uncoupled legs. Real
+weaves have bundle profiles with harmonics and resin-rich knuckles, and the legs of a
+real pair couple. The skew and null trends are right; the numbers are illustrative.
+PHYSICS.md §14.4.
+
+### 26. The coupled pair is two ideal modes
+
+Even and odd modes from one coupling coefficient and a Dk split, on the §13 line. With
+loss, far-end crosstalk does not cancel even with no split, because the modes lose
+differently. PHYSICS.md §14.4.
+
+### 27. The causality screen is a screen
+
+It compares energy before and after a guard band in the impulse response. A transfer
+can be acausal in ways that pass both thresholds, and a delay shorter than the guard is
+not judged. The coarse-sweep flag is a median phase step above π/2, which a sweep with
+a few coarse regions can pass. PHYSICS.md §14.5.
+
+### 28. The passivity estimate overstates by a known bound
+
+σ_max comes from 24 trace-normalised squarings, which overstate it by at most
+N^(1/2²⁵): 4 × 10⁻⁸ relative for a four-port. The threshold is 1 + 10⁻⁶, and at most
+1000 frequencies are checked, evenly decimated. PHYSICS.md §14.1.
+
+### 29. ICN assumes every aggressor is the victim's twin
+
+Each aggressor is a random NRZ pattern at the victim's level, rate and edge, independent
+of the others. The receiver bandwidth is 0.75 of the symbol rate. It is a figure of
+merit, not a time-domain crosstalk simulation. PHYSICS.md §14.6.
+
+### 30. The measured page's settings are not in the permalink
+
+The synthetic source, weave offset and angle, coupling, corruption, minimum-phase and
+ILD view are page state, as in item 6. The Scenario carries the file's name, port count,
+ports, reference and mixed mode, never its data.
+
+### 31. A file is parsed on the main thread
+
+`file.text()` and the parser run on the main thread. A 4-port sweep of 10 000 points is
+about 2 MB; a file near the 64 MB limit will stall the page while it reads. Parse time
+has not been measured against the 100 ms budget; that is a Polish-milestone check.
+
+### 32. The main bundle passed Vite's 900 kB warning
+
+The measured page imports the synthetic networks and the writer for its save buttons,
+and the bundle grew from 868 kB to 942 kB (293 kB gzipped). The build still succeeds.
+Code splitting by module is a Polish-milestone item.
 
 ---
 
@@ -842,6 +1041,20 @@ line rings forever. A lossy line's response dies away, and loss is defined in th
 frequency domain. The record is sized from the slowest possible arrival plus a tail,
 and the wrap is measured and reported rather than assumed away.
 
+**A file never enters the Scenario.** A sweep of a few thousand points is megabytes,
+and the Scenario is a URL. The file is held in `network-store.ts` and the Scenario
+names it, so a link says which file it needs and the page says when that file is
+missing, rather than silently showing something else.
+
+**A loaded file and a synthetic network are the same type.** The woven and coupled
+pairs are written into the same `Network` a file is read into, and the page can save
+them as `.s4p`. So every check on the file path has a network whose answer is known,
+and a reader has a file to try the upload with before they have one of their own.
+
+**The wiring is read, not asked.** Two four-port conventions are common and a wrong
+guess shows crosstalk as the through path. Reading it from the data and printing it
+beats a setting most readers would not know how to answer.
+
 ---
 
 ## Open questions — none
@@ -912,21 +1125,14 @@ letters and the mathematical minus.
 
 ## Next
 
-**Milestone 4 is at gate 4a.** M4's loss sections are written, wired to the `lossy` job
-and reachable from the site. Every formula they display is implemented in
-`src/sim/channel/lossy.ts` or `src/dsp/jobs/lossy-job.ts`, and derived in PHYSICS.md
-§13. Every number in the prose, the materials table and the self-checks is evaluated
-rather than quoted.
+**Milestone 4 is at gate 4b.** M4 is complete: loss on a line, and measured channels.
+Every formula the page displays is implemented in `src/sim/channel/lossy.ts`,
+`src/sim/touchstone/` or the `lossy` and `measured` jobs, and derived in PHYSICS.md §13
+and §14. Every number in the prose, the tables and the self-checks is evaluated rather
+than quoted.
 
-Gate 4b completes M4 with measured channels:
+Milestone 5 is M5: ISI, eye diagrams and jitter. It folds the received streams of M4,
+from the model line or a loaded file, into eyes, and turns an opening into a bit error
+rate.
 
-- Touchstone import, kept in memory only;
-- differential pairs and mixed-mode S-parameters;
-- ILD and ICN;
-- passivity and causality checks on a measured file, and the minimum-phase
-  construction that item 4 says must be stated on screen;
-- fibre weave and intra-pair skew;
-- the silicon loss-budget callout.
-
-No questions are open. Gate 4a's review changed nothing on the page except the amplitude
-convention above.
+No questions are open.

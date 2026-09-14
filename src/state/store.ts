@@ -89,6 +89,11 @@ function commit(next: AppState, replace: boolean): void {
   emit();
 }
 
+/** The scenario now, for code outside React that patches it. */
+export function getScenario(): Scenario {
+  return current.scenario;
+}
+
 /** Replace the scenario, leaving the route alone. */
 export function setScenario(s: Scenario, replace = true): void {
   const encoded = encodeScenario(s);

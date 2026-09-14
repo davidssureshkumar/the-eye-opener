@@ -136,10 +136,18 @@ describe('transfer lists', () => {
           .filter((v): v is ArrayBufferView => ArrayBuffer.isView(v))
           .map((v) => v.buffer),
       );
-      // Arrays of arrays, like the per-harmonic traces, count too.
+      // Arrays of arrays, like the per-harmonic traces, count too, and so do arrays of
+      // records holding arrays, like the measured channel's aggressors.
       for (const v of Object.values(result)) {
         if (Array.isArray(v)) {
-          for (const item of v) if (ArrayBuffer.isView(item)) owned.add(item.buffer);
+          for (const item of v) {
+            if (ArrayBuffer.isView(item)) owned.add(item.buffer);
+            else if (item !== null && typeof item === 'object') {
+              for (const field of Object.values(item as object)) {
+                if (ArrayBuffer.isView(field)) owned.add(field.buffer);
+              }
+            }
+          }
         }
       }
       for (const buffer of transferablesOf(kind, result as never)) {

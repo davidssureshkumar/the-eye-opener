@@ -19,6 +19,7 @@ import type { JobDefinition, JobInput, ProgressFn } from './types';
 import { edgeJob, type EdgeParams, type EdgeResult } from './edge-job';
 import { fourierJob, type FourierParams, type FourierResult } from './fourier-job';
 import { lossyJob, type LossyParams, type LossyResult } from './lossy-job';
+import { measuredJob, type MeasuredParams, type MeasuredResult } from './measured-job';
 import { patternJob, type PatternParams, type PatternResult } from './pattern-job';
 import { spectrumJob, type SpectrumParams, type SpectrumResult } from './spectrum-job';
 import { tlineJob, type TlineParams, type TlineResult } from './tline-job';
@@ -29,6 +30,7 @@ export * from './adapt';
 export * from './edge-job';
 export * from './fourier-job';
 export * from './lossy-job';
+export * from './measured-job';
 export * from './pattern-job';
 export * from './spectrum-job';
 export * from './tline-job';
@@ -39,6 +41,7 @@ export interface JobParams {
   edge: EdgeParams;
   fourier: FourierParams;
   lossy: LossyParams;
+  measured: MeasuredParams;
   pattern: PatternParams;
   spectrum: SpectrumParams;
   tline: TlineParams;
@@ -50,6 +53,7 @@ export interface JobResults {
   edge: EdgeResult;
   fourier: FourierResult;
   lossy: LossyResult;
+  measured: MeasuredResult;
   pattern: PatternResult;
   spectrum: SpectrumResult;
   tline: TlineResult;
@@ -64,6 +68,7 @@ export const JOBS: Registry = {
   edge: edgeJob,
   fourier: fourierJob,
   lossy: lossyJob,
+  measured: measuredJob,
   pattern: patternJob,
   spectrum: spectrumJob,
   tline: tlineJob,

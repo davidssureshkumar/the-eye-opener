@@ -13,6 +13,10 @@
  * table calls the closed-form attenuation functions for each illustrative class, and
  * the self-check answers are computed from `skinDepth`, `conductorAttenuation` and
  * `dielectricAttenuation`, so none of them can disagree with the plots.
+ *
+ * The second half, measured channels, is `MeasuredChannel` in Measured.tsx, on its
+ * own `runJob('measured', ...)`; the silicon callout's route table is its
+ * `RouteBudgetTable`.
  */
 
 import { useMemo, useState } from 'react';
@@ -35,6 +39,7 @@ import { defaultScenario } from '../../state/scenario';
 import { useScenario } from '../../state/store';
 import { permalinkFor } from '../../state/url-codec';
 import { useJob } from '../../workers/use-job';
+import { MeasuredChannel, RouteBudgetTable } from './Measured';
 import {
   dielectricRender,
   groupDelayRender,
@@ -827,6 +832,8 @@ export function M4({ moduleId }: { moduleId: string }): JSX.Element {
         expect="The loss at Nyquist grows in proportion to length, about 2 dB per 5 cm here. The worst centre level does not: it falls gently at first and then collapses, and by 30 cm the bit with the unluckiest history lands on the wrong side of zero with no noise and no jitter at all. Long runs of one level still reach full height; it is the isolated bits whose pulses have been spread into their neighbours. Undoing that data-dependent error is what equalization (M7) is for."
       />
 
+      <MeasuredChannel moduleId={moduleId} permalink={permalink} />
+
       <Callout
         variant="bench"
         title="Measuring loss, and removing it from a measurement"
@@ -862,8 +869,8 @@ export function M4({ moduleId }: { moduleId: string }): JSX.Element {
           modest; what closes the eye is its combination with reflections from the connector, the vias and the
           package, and with crosstalk. DDR5 added decision-feedback equalization at the DRAM receiver for
           exactly that residual ISI. LPDDR5 routes are shorter still, often inside a package-on-package or a
-          few millimetres of substrate. The receiver requirements are in JESD79-5 (DDR5) and JESD209-5
-          (LPDDR5); this site does not reproduce their values.
+          few millimetres of substrate. The receiver requirements are in JESD79-5 (DDR5), JESD209-5 (LPDDR5)
+          and JESD238 (HBM3); this site does not reproduce their values.
         </p>
         <p>
           HBM is different in kind. The route between the memory stack and the processor runs on a silicon
@@ -872,9 +879,18 @@ export function M4({ moduleId }: { moduleId: string }): JSX.Element {
           conductor itself, so equation 4.2 sits in its transition rather than deep in the skin regime. The
           resistance per metre is then large enough to compete with <TeX tex="\omega L'" /> across the band,
           the line behaves more like a distributed RC than a low-loss transmission line, and a smoother
-          surface buys little. The controls on this page stop at board dimensions, so that regime is described
-          here, not simulated.
+          surface buys little.
         </p>
+        <p>
+          The table puts one illustrative route of each class through the same model at the same rate. Read
+          the ratio of the last two loss columns: on the board route almost all the loss at Nyquist is
+          frequency dependent, which an equaliser can undo; on the interposer, at memory-interface rates, much
+          of it is already there at DC, as the series resistance dividing against the 50 ohm ports,{' '}
+          <TeX tex="20\log_{10}(1 + R/2R_0)" />, and no equaliser recovers that. The package route loses
+          little of either. Each row is the line alone: connectors, balls, bumps and through-silicon vias,
+          which on a real link often dominate, are left out.
+        </p>
+        <RouteBudgetTable line={line} frequency={nyquist} />
       </Callout>
 
       <SelfCheck
@@ -998,8 +1014,7 @@ export function M4({ moduleId }: { moduleId: string }): JSX.Element {
       <p className="text-micro text-lo">
         Next: the pulse above left pieces of itself in the bits that followed. M5 folds a long record of those
         pieces into an eye diagram, adds the jitter a real transmitter has, and turns the opening into a bit
-        error rate. Before that, this page will gain measured channels: Touchstone import, differential pairs,
-        and the checks a measured file has to pass before its eye can be trusted.
+        error rate, and a loaded Touchstone file can be driven through it exactly as the model line is.
       </p>
     </>
   );
