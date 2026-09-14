@@ -3,8 +3,8 @@
 What is done, what is stubbed, what is known to be inaccurate, and what is waiting
 on an answer.
 
-Updated at the end of each milestone. Last updated: **2026-09-13**, at the
-Milestone 2 gate.
+Updated at the end of each milestone. Last updated: **2026-09-14**, at the
+Milestone 3 gate.
 
 ---
 
@@ -13,8 +13,8 @@ Milestone 2 gate.
 | #   | Milestone | Covers                             | State                  |
 | --- | --------- | ---------------------------------- | ---------------------- |
 | 1   | Core      | DSP, plots, state, content, shell  | Complete               |
-| 2   | M1 + M2   | Harmonics; ideal edge to real edge | **Complete - at gate** |
-| 3   | M3        | Transmission lines and reflections | Not started            |
+| 2   | M1 + M2   | Harmonics; ideal edge to real edge | Complete               |
+| 3   | M3        | Transmission lines and reflections | **Complete - at gate** |
 | 4   | M4        | Loss                               | Not started            |
 | 5   | M5        | ISI, eye diagrams, jitter          | Not started            |
 | 6   | M7        | Equalization                       | Not started            |
@@ -27,6 +27,89 @@ Milestone 2 gate.
 Modules are built in the order above, not in numeric order: equalization (M7) comes
 before crosstalk (M6) because the eye-closure machinery it needs is built in
 Milestone 5.
+
+---
+
+## Milestone 3 — done
+
+**1651 tests across 38 files, all passing.** `npm run verify` is clean end to end.
+Milestone 3 added 79 tests in three new files, the first file in `src/sim/`, a new
+job, and the third entry in `BODIES`.
+
+| Layer          | Tests | Change |
+| -------------- | ----- | ------ |
+| `src/content`  | 755   | —      |
+| `src/dsp`      | 275   | —      |
+| `src/plots`    | 265   | —      |
+| `src/state`    | 137   | —      |
+| `src/dsp/jobs` | 78    | +14    |
+| `src/modules`  | 66    | +22    |
+| `src/sim`      | 43    | +43    |
+| `src/workers`  | 27    | —      |
+| `src/design`   | 5     | —      |
+
+### M3 — Transmission lines and reflections
+
+`src/modules/m3/M3.tsx`, with its three figures in `src/modules/m3/plots.ts`.
+
+The argument: once the delay across a route is comparable with the edge, the driver
+launches a wave into Z0 without knowing what is at the far end, and every mismatch
+sends part of it back. The **lattice** figure draws that from the closed form, with
+each wave's amplitude and each end's level labelled. The **waveform** figure shows
+the driver pin and the receiver pad from the simulator, with the lattice's staircase
+over them, so the reader can see the two agree on every plateau and differ only on
+the edges. The **TDR** figure shows what a 50 Ω instrument displays looking into the
+same line, with the true impedance profile beneath it, on a time or distance axis.
+
+Displayed and implemented (PHYSICS.md §12): delay and effective permittivity (3.1),
+critical length (3.2), Z0 and v from L′ and C′ (3.3), the launch divider (3.4), Γ and
+the node voltage (3.5), the lattice sum and its resistive-divider limit (3.6), the
+reflection from a parallel RC load (3.7), the TDR conversion (3.8), TDR distance
+(3.9) and the apparent second reflection (3.10).
+
+Both tables are evaluated live: the critical-length table through `criticalLength` at
+k = 1/2, 1/4, 1/6, 1/10 using the driver's rise time converted to 10-90 % for its
+edge shape; the termination table through `bounceDiagram` for unterminated, series,
+parallel and both-ends schemes at the current line and driver. The self-check answers
+are computed from `tdrDistance`, `reflectionCoefficient` and
+`apparentSecondReflection`, so the quiz cannot disagree with the figures.
+
+Callouts: a silicon callout on programmable driver impedance and on-die termination
+(POD to the I/O supply for DDR4/DDR5, LVSTL to ground for LPDDR4/LPDDR5; no values,
+JESD79-5 and JESD209-5 cited by number only), one on first-incident switching, and a
+bench callout on TDR reference planes, the step rise-time filter, ρ versus ohms
+units, and probe ground-lead ringing masquerading as a reflection.
+
+### New physics — `src/sim/channel/tline.ts`
+
+The lossless line in two forms that are tested against each other. `bounceDiagram` is
+the analytic lattice and the oracle. `simulateLine` is a wave-variable time-stepper
+with integer-sample delay: exact for resistive ends, and exact at a parallel R ∥ C
+far-end node under a zero-order hold. Plus the TDR conversion, distance, the apparent
+second reflection, the RC-load reflection closed form, critical length and the
+per-unit-length relations. 43 tests against closed forms, including the 73.3775 Ω
+worked example.
+
+### New job — `tline`
+
+`src/dsp/jobs/tline-job.ts` shapes the driver edge with `applyResponse`, picks a grid
+on which the delay is a whole number of samples, simulates the step, adds the DC
+level back by superposition, runs a matched 50 Ω TDR with the same edge, and measures
+launch, overshoot, ringback, 2 % settling and the TDR line and load readings.
+
+### New UI — `ChannelKindNotice`
+
+The channel panel shows only the selected model's controls, and the default model is
+`lossy`. A module about the transmission line therefore opened with its controls
+hidden. `src/modules/ChannelKindNotice.tsx` says so when the selected model differs
+and offers one button to switch, which pushes a history entry. M3 uses it for the
+line; M2 now uses it for the lumped RLC above its damping section.
+
+### Fixed
+
+The help text for **Far-end C** said a capacitive far end reflects like an open at low
+frequency. It reflects like the load resistance alone; for a matched resistor that is
+no reflection at all. Corrected in `src/content/help.ts`.
 
 ---
 
@@ -361,6 +444,40 @@ A straight ramp has no transfer function, so `edgeResponseOf` maps the Scenario'
 to a ramp with no overshoot. M2 says so on screen when that shape is selected, rather
 than silently renaming it in the legend.
 
+### 8. Lossless lines only
+
+Every line in M3 is lossless: no skin effect, no dielectric loss, frequency-independent
+Z0. Real routes at these edge rates lose amplitude and edge rate as they go, so M3's
+ringing persists longer and its edges arrive sharper than on a board. That is the
+subject of M4 and is said on screen.
+
+### 9. A capacitive far end is first-order in the time step
+
+With `loadC` above zero the far-end node voltage is exact under a zero-order hold,
+but the wave sent back up the line is sampled at the start of each interval, so what
+returns to the driver is first-order accurate in Δt. At the hundreds of samples per
+delay M3 uses it is below plot resolution. With `loadC` zero the simulator is exact.
+
+### 10. The TDR reads exactly only to the first discontinuity
+
+The modelled TDR converts every sample against 50 Ω as though it came from a single
+interface, as real instruments do. Readings behind the first discontinuity are
+apparent values (PHYSICS.md §12.6); M3 teaches this rather than correcting for it,
+and the load metric's target is the true load so the discrepancy is visible.
+
+### 11. The Scenario's "open" end is 1 MΩ
+
+Γ = 0.9999 on 50 Ω, not 1. Invisible on screen; tests assert open-end plateaus to
+three digits for that reason.
+
+### 12. The transmission-line controls need `channel.kind = tline`
+
+The channel panel shows one model's controls at a time. M3's figures read the
+`tline` fields whatever is selected, so they are correct, but the controls the prose
+refers to are hidden until the model is selected. `ChannelKindNotice` says so and
+offers the switch. Job parameters (record length, lattice rows, the TDR axis, the
+overlays) are module-local and not in the permalink, as in item 6.
+
 ---
 
 ## Decisions worth recording
@@ -470,9 +587,35 @@ the worst failure mode a guard can have. It uses `node:fs` behind a file-scoped
 `/// <reference types="node" />`, so the app's type environment stays browser-only
 everywhere else.
 
+**M3 simulates the line by scattering, not by FFT.** A lossless line with an open or
+shorted end never stops ringing, so any finite FFT window wraps the tail onto the
+start. The wave-variable form truncates cleanly and is exact for resistive ends, and
+the analytic lattice is kept alongside it as the test oracle.
+
+**The TDR is a 50 Ω instrument, not the driver.** Running the TDR with the driver's
+own impedance would make every displayed impedance wrong by construction. 50 Ω is an
+instrument convention, so it is a constant (`TDR_REFERENCE_OHMS`), not a Scenario
+field.
+
+**DC offset by superposition.** The simulator starts from an uncharged line; the job
+simulates the step and adds the pre-step divider level. Exact for a linear model, and
+it avoids launching a step at t = 0 from a line that was never at zero.
+
 ---
 
-## Open questions — none
+## Open questions — one
+
+### 4. What does `source.amplitude` mean? — **open**
+
+M3 reads it as the **open-circuit** swing of an ideal source behind `source.sourceZ`.
+That is the only reading defined before a load is known, and it is what the line
+equations need. The alternative is the swing delivered into a stated load, which is
+how a driver's output is often quoted. The two differ by the divider: at the default
+40 Ω driver into 50 Ω, the launched wave is 5/9 of the open-circuit value. Nothing before M3 uses the driver impedance, so M1 and M2 are unaffected; M3 onward are. If the Scenario should mean
+swing-into-load, the job divides by the divider at one place and the prose of M3's
+equation 3.4 changes. **Question for the gate:** keep open-circuit, or change it?
+
+### Closed
 
 All three raised at the Milestone 1 gate are closed. The resolutions are kept rather
 than deleted, because a decision with no record is one somebody re-opens by accident.
@@ -515,12 +658,12 @@ letters and the mathematical minus.
 
 ## Next
 
-**Milestone 2 is at its gate.** M1 and M2 are written, wired to real jobs, and
-reachable from the site; every formula they display is implemented, and every number
-in their prose is evaluated rather than quoted. PHYSICS.md gained §2.5 and §3.7 for
-the two results they introduce.
+**Milestone 3 is at its gate.** M3 is written, wired to a real job, and reachable from
+the site. Every formula it displays is implemented in `src/sim/channel/tline.ts` and
+derived in PHYSICS.md §12, and every number in its prose, tables and self-checks is
+evaluated rather than quoted.
 
-Milestone 3 is M3, transmission lines and reflections — the first module that needs
-`src/sim/channel.ts`, which is still empty. It is also the point at which the lumped
-RLC of M2 stops being the right model, and the module has to say so with a picture
-rather than with a caveat.
+Milestone 4 is M4, loss: skin effect, dielectric loss and surface roughness, the
+`lossy` channel model the Scenario already defaults to, and what loss does to an edge
+with nothing to reflect from. It is also where the minimum-phase construction of §10.2
+is first used on screen, which item 4 above says must be stated there.

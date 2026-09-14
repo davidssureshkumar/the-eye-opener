@@ -20,6 +20,7 @@ import { edgeJob, type EdgeParams, type EdgeResult } from './edge-job';
 import { fourierJob, type FourierParams, type FourierResult } from './fourier-job';
 import { patternJob, type PatternParams, type PatternResult } from './pattern-job';
 import { spectrumJob, type SpectrumParams, type SpectrumResult } from './spectrum-job';
+import { tlineJob, type TlineParams, type TlineResult } from './tline-job';
 import { waveformJob, type WaveformParams, type WaveformResult } from './waveform-job';
 
 export * from './types';
@@ -28,6 +29,7 @@ export * from './edge-job';
 export * from './fourier-job';
 export * from './pattern-job';
 export * from './spectrum-job';
+export * from './tline-job';
 export * from './waveform-job';
 
 /** Parameters each job kind takes. */
@@ -36,6 +38,7 @@ export interface JobParams {
   fourier: FourierParams;
   pattern: PatternParams;
   spectrum: SpectrumParams;
+  tline: TlineParams;
   waveform: WaveformParams;
 }
 
@@ -45,6 +48,7 @@ export interface JobResults {
   fourier: FourierResult;
   pattern: PatternResult;
   spectrum: SpectrumResult;
+  tline: TlineResult;
   waveform: WaveformResult;
 }
 
@@ -57,6 +61,7 @@ export const JOBS: Registry = {
   fourier: fourierJob,
   pattern: patternJob,
   spectrum: spectrumJob,
+  tline: tlineJob,
   waveform: waveformJob,
 };
 

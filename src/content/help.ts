@@ -313,7 +313,7 @@ export const CONTROL_HELP: Record<string, ControlHelp> = {
     label: 'Far-end C',
     unit: 'F',
     what: 'Capacitance across the far-end load, standing in for receiver input capacitance.',
-    why: 'A capacitive far end reflects like a short at high frequency and like an open at low frequency, which is why its reflection is a dip that recovers rather than a step.',
+    why: 'A capacitive far end reflects like a short at high frequency and like the load resistance alone at low frequency, which is why its reflection is a dip that recovers to the resistive value rather than a step.',
     see: ['reflection-coefficient', 'rlc', 'probe-loading'],
   },
   'channel.tline.bounces': {

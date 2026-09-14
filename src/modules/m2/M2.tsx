@@ -21,6 +21,7 @@
 
 import { useMemo, useState } from 'react';
 import { Callout, Math as TeX, MathBlock, Plot, SelfCheck, TryThis } from '../../ui';
+import { ChannelKindNotice } from '../ChannelKindNotice';
 import { ParamRow, ParamSlider, ParamToggle } from '../params';
 import {
   cascadedPoleRiseTime,
@@ -394,6 +395,8 @@ export function M2({ moduleId }: { moduleId: string }): JSX.Element {
 
       <h2>Second order, where the ringing comes from</h2>
 
+      <ChannelKindNotice kind="rlc" controls={['Series R', 'Series L', 'Shunt C']} />
+
       <p>
         A single pole cannot overshoot. Real interconnect does, constantly, and the reason is that a package
         pin or a via is not one pole - it is inductance and capacitance with some resistance, which is a
@@ -424,7 +427,7 @@ export function M2({ moduleId }: { moduleId: string }): JSX.Element {
         At <TeX tex="\zeta = 1" /> it reaches the final value as fast as it can without exceeding it. Above 1
         it is two real poles and it is slow. The resistance that puts <TeX tex="\zeta" /> exactly at 1 is{' '}
         <TeX tex="R = 2\sqrt{L/C}" />, which for the {formatEng(rlc.l, 'H', 2)} and {formatEng(rlc.c, 'F', 2)}{' '}
-        currently set is {formatEng(2 * ch.z0, 'ohm', 4)}. The panel has {formatEng(rlc.r, 'ohm', 3)} in it,
+        currently set is {formatEng(2 * ch.z0, 'Ω', 4)}. The panel has {formatEng(rlc.r, 'Ω', 3)} in it,
         giving <TeX tex="\zeta" /> = <span className="readout text-hi">{ch.zeta.toFixed(4)}</span> -{' '}
         {ch.regime}.
       </p>

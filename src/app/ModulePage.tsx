@@ -18,6 +18,7 @@ import { Placeholder } from '../modules/Placeholder';
 import { panelsFor } from '../modules/registry';
 import { M1 } from '../modules/m1/M1';
 import { M2 } from '../modules/m2/M2';
+import { M3 } from '../modules/m3/M3';
 
 /**
  * Modules with a written body. Everything not listed here falls through to
@@ -26,6 +27,7 @@ import { M2 } from '../modules/m2/M2';
 const BODIES: Record<string, ComponentType<{ moduleId: string }>> = {
   m1: M1,
   m2: M2,
+  m3: M3,
 };
 
 export function ModulePage({ moduleId }: { moduleId: string }): JSX.Element {

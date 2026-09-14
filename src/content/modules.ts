@@ -59,7 +59,7 @@ export const MODULES: ModuleMeta[] = [
     summary:
       'When a trace stops being a wire. Characteristic impedance, the lattice/bounce diagram, termination schemes, and TDR read as the time-domain picture of an impedance profile.',
     milestone: 3,
-    status: 'planned',
+    status: 'done',
   },
   {
     id: 'm4',

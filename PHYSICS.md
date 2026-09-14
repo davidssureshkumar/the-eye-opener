@@ -14,10 +14,11 @@ class of interface and are labelled illustrative; they are not specification
 figures. Where a _polynomial_ or a _definition_ comes from a public standard
 (ITU-T O.150, IEEE 802.3), the standard is named.
 
-Scope: this file currently covers the layers implemented in Milestone 1 — DSP,
-plotting mathematics, and scenario state. Channel physics (transmission lines,
-skin effect, dielectric loss, crosstalk, equalization) is specified in the module
-plan and will be added to this file as each module is built, not before.
+Scope: this file covers the layers implemented through Milestone 3 — DSP,
+plotting mathematics, scenario state, and the lossless transmission line (§12).
+The remaining channel physics (skin effect, dielectric loss, crosstalk,
+equalization) is specified in the module plan and will be added to this file as
+each module is built, not before.
 
 ---
 
@@ -800,7 +801,208 @@ decibels.
 
 ---
 
-## 12. Open items
+## 12. Transmission lines
+
+Module 3. Implemented in `src/sim/channel/tline.ts`; the job that drives it is
+`src/dsp/jobs/tline-job.ts`. Every line in this section is **lossless**: no conductor
+or dielectric loss, frequency-independent Z0 and velocity. Loss is Module 4.
+
+Sources for the whole section: H. Johnson and M. Graham, _High-Speed Digital Design:
+A Handbook of Black Magic_ (Prentice Hall, 1993), ch. 4; E. Bogatin, _Signal and
+Power Integrity - Simplified_, 3rd ed. (Prentice Hall, 2018), chs. 7-8 (reflections
+and TDR); D. M. Pozar, _Microwave Engineering_, 4th ed. (Wiley, 2012), ch. 2 (the
+telegrapher equations and the terminated line). No JEDEC material is used here.
+
+### 12.1 Delay, velocity and critical length
+
+```
+v     = vf · c = c / √εr,eff          c = 299 792 458 m/s (exact)
+t_d   = ℓ / v
+ℓcrit = k · v · t_r
+```
+
+`propagationVelocity`, `propagationDelay`, `effectivePermittivity`,
+`velocityFactorFromPermittivity`, `delayPerMetre`, `criticalLength`.
+
+The velocity relation assumes a TEM or quasi-TEM mode, where the field sees a single
+effective permittivity. It is exact for stripline in a homogeneous dielectric and
+approximate for microstrip, whose εr,eff depends on geometry and, weakly, on
+frequency; the Scenario asks for vf directly so that no geometry model is implied.
+
+**The critical length is a rule of thumb, not a result.** k is the fraction of the
+rise time the one-way delay may reach before the line is treated as distributed.
+Books use 1/2, 1/4, 1/6 and 1/10; M3 tabulates all four instead of picking one. The
+rules are stated against a **10-90 %** rise time. The Scenario states the driver at
+**20-80 %**, so M3 converts through the modelled edge shape:
+
+```
+t_r(10-90) = t_r(20-80) · P(0.1, 0.9) / P(0.2, 0.8)
+```
+
+with P the rise-time × bandwidth product of §3.3 (`riseTimeBandwidthProduct`), so the
+conversion is right for each edge shape rather than for one of them.
+
+Valid range: any positive length and 0 < vf ≤ 1, as the Scenario allows.
+
+### 12.2 Characteristic impedance from per-unit-length L and C
+
+```
+Z0 = √(L′ / C′)          v = 1 / √(L′ C′)
+```
+
+`characteristicImpedance`, `velocityFromPerUnitLength`.
+
+_Derivation._ The lossless telegrapher equations are ∂V/∂z = −L′ ∂I/∂t and
+∂I/∂z = −C′ ∂V/∂t. Substituting a forward wave V = f(t − z/v), I = V/Z0 into both
+gives v·L′ = Z0 and v·C′ = 1/Z0; multiplying and dividing gives the two results. The
+inverse pair L′ = Z0/v, C′ = 1/(Z0·v) is what the unit test recovers: 50 Ω at
+vf 0.5 is 333.56 nH/m and 133.43 pF/m.
+
+Assumptions: lossless (R′ = G′ = 0), uniform, TEM.
+
+### 12.3 Launch and the reflection coefficient
+
+```
+V_launch = V_s · Z0 / (R_S + Z0)
+Γ        = (Z − Z0) / (Z + Z0)
+V_node   = (1 + Γ) · V_inc
+```
+
+`launchVoltage`, `reflectionCoefficient`, `impedanceFromReflection`.
+
+_Derivation._ For t < 2t_d nothing from the far end can reach the driver, so the line
+presents Z0 and the launch is a divider. At a termination Z, write the line voltage
+and current as incident plus reflected, V = V⁺ + V⁻ and I = (V⁺ − V⁻)/Z0, and impose
+V = Z·I. Solving for V⁻/V⁺ gives Γ; then V = V⁺(1 + Γ).
+
+V_s is the **open-circuit** voltage of an ideal source behind R_S. The site reads
+`source.amplitude` that way; see the open question in PROGRESS.md.
+
+Limits handled explicitly: Z = ∞ returns Γ = +1 (not NaN), and the inverse clamps
+|Γ| ≤ 0.999 before dividing by 1 − Γ. The Scenario's default "open" load is 1 MΩ,
+which on 50 Ω is Γ = 0.9999, not 1; tests that assert open-end plateaus do so to
+three digits for that reason.
+
+### 12.4 The lattice and the final level
+
+The wave arriving at the far end on the j-th trip is V_launch·(Γ_S Γ_L)^j; the level at
+each end is the running sum of what has arrived there, each arrival multiplied by
+(1 + Γ) at that end. Summing the far-end series:
+
+```
+V_far(∞) = V_launch (1 + Γ_L) Σ (Γ_S Γ_L)^j = V_launch (1 + Γ_L) / (1 − Γ_S Γ_L)
+         = V_s · R_L / (R_S + R_L)
+```
+
+The second form follows by substituting §12.3 and simplifying, and contains no Z0:
+the line changes how the final level is reached, never what it is. The series
+converges whenever |Γ_S Γ_L| < 1, which is any pair of finite positive resistances.
+
+`bounceDiagram(spec, bounces)` evaluates the series term by term and reports
+`truncationError`, the distance from the last computed level to the closed form.
+`steadyStateVoltage` is the divider.
+
+Assumptions: resistive terminations. A far-end capacitance is ignored by the lattice
+(the figure says so) and handled by the simulator, §12.5.
+
+### 12.5 The simulator, and a capacitive far end
+
+`simulateLine` is a wave-variable (scattering) time-stepper. With V = a + b and
+I = (a − b)/Z0, a lossless line only delays a and b, so each direction is a ring
+buffer of m = round(t_d/Δt) samples, and all the physics is at the ends:
+
+```
+near end:     a₁ = V_s·Z0/(Z0 + R_S) + Γ_S·b₁
+far end, R:   V₂ = a₂(1 + Γ_L),   b₂ = Γ_L·a₂
+far end, R∥C: C dV/dt = 2a₂/Z0 − V(1/Z0 + 1/R)
+              V[n+1]  = V∞ + (V[n] − V∞)·exp(−Δt/τ)
+              V∞ = 2a₂(R∥Z0)/Z0,   τ = C(R∥Z0),   b₂ = V₂ − a₂
+```
+
+The RC update is the exact solution under a zero-order hold on the incident wave, so
+Δt is not limited by τ. For an ideal step of height A arriving at an uncharged R ∥ C
+load, the reflected wave is
+
+```
+V_ref(t) = A [Γ_R − (1 + Γ_R) exp(−t/τ)]
+```
+
+(`rcLoadReflection`): −A at arrival, whatever R is, relaxing to A·Γ_R. The far-end
+voltage is a single-pole edge of 10-90 % time τ·ln 9 (§3.2) for an ideal incident
+step; for a band-limited one the two rise times combine approximately in quadrature
+(§3.7).
+
+**Accuracy.** With C = 0 the scheme is exact: every end relation is algebraic, the
+delay is an integer number of samples, and the tests assert agreement with the
+lattice. With C > 0 the node voltage is exact under the hold, but the wave returned up
+the line is sampled at the start of each interval, so what reaches the driver is
+first-order accurate in Δt. M3 runs at hundreds of samples per delay, where this is
+invisible at plot resolution; it is recorded in PROGRESS.md as an approximation.
+
+**Grid.** The job chooses Δt so that t_d is a whole number of samples. When the line
+is shorter than half the target sample interval, one sample of delay is used and the
+discrepancy is returned as `delayError` rather than hidden. The record extends 6 t_r
+before the step (the edge is zero-phase, §3.6) and the longer of the requested number
+of delays or rise times after it, capped at 2¹⁸ samples.
+
+**DC offset by superposition.** The simulator starts from an uncharged line. The job
+simulates the step alone and adds the pre-step level, which on a lossless line with
+resistive ends is the divider V_offset·R_L/(R_S + R_L) at both ends. This is exact for
+a linear model and avoids a spurious launch at t = 0.
+
+**Frequency domain rejected.** An ABCD/S-parameter formulation with an FFT was
+considered. With |Γ_S Γ_L| near 1 the ringing outlasts any practical window and wraps
+onto its own start; the scattering form instead truncates cleanly, losing late
+bounces without misrepresenting early ones.
+
+### 12.6 TDR
+
+```
+ρ(t) = (V_port(t) − V_s(t)/2) / (V_step/2)
+Z(t) = Z_ref (1 + ρ) / (1 − ρ)
+d    = v · t / 2
+ρ₂   = Γ₁ + (1 − Γ₁²) Γ₂
+```
+
+`tdrReflection`, `tdrImpedance`, `tdrDistance`, `apparentSecondReflection`.
+
+The modelled instrument is an ideal step behind Z_ref = 50 Ω (`TDR_REFERENCE_OHMS`),
+with the Scenario's edge shape and rise time, looking into the Scenario's line and
+load. A matched source puts half its open-circuit voltage into its own reference, so
+the incident wave is V_s(t)/2 at every instant. Subtracting the instantaneous rather
+than the final incident voltage keeps the display flat through the launched edge.
+ρ is clamped to ±0.999 before conversion.
+
+_Distance._ The time axis is round trip, so distance is half of v·t.
+
+_Apparent second reflection._ Behind a first interface Γ₁ (reference to Z₁), a second
+interface Γ₂ (Z₁ to Z₂) is reached through a transmission 1 + Γ₁ going out and 1 − Γ₁
+coming back, and the first interface's own reflection is still present:
+
+```
+ρ₂ = Γ₁ + (1 + Γ₁)(1 − Γ₁) Γ₂
+```
+
+This neglects the re-reflections trapped between the two interfaces, which arrive
+later, so it is the reading on the first plateau after the second arrival. Converting
+ρ₂ against Z_ref rather than Z₁ misreads Z₂. Worked example, asserted in the tests: a
+40 Ω section in front of a 75 Ω load, read by a 50 Ω instrument, displays the load as
+**73.38 Ω** (Γ₁ = −1/9, Γ₂ = 35/115). Only the first discontinuity reads exactly; a
+structure of many close interfaces needs layer-peeling, which this site does not
+implement.
+
+_Resolution (rule of thumb)._ Two features whose round trips differ by less than about
+one rise time of the step are not separately visible, which is a separation of roughly
+v·t_r/2. What counts as resolved depends on the edge shape and the feature size, so M3
+labels this as a rule of thumb.
+
+Assumptions for the whole of §12.6: lossless line, ideal matched instrument, no cable
+or fixture (equivalently, a reference plane calibrated to the device), no averaging
+or instrument noise.
+
+---
+
+## 13. Open items
 
 Everything raised for the Milestone 1 gate is closed. Kept here with its resolution,
 because a decision with no record is a decision someone re-opens by accident.

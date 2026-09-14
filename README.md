@@ -16,24 +16,26 @@ static files.
 
 ## Status
 
-**Milestone 2 of 11 — the first two modules, complete and at review.** The core
+**Milestone 3 of 11 — three modules, the third complete and at review.** The core
 layers were Milestone 1; Milestone 2 is the first teaching. **M1** builds a square
 wave out of harmonics and shows where they land in frequency. **M2** replaces the
 truncation of M1 with a filter and works out what a rise time actually is, including
-the conditions under which 0.35/BW is true.
+the conditions under which 0.35/BW is true. **M3** is the point where the route stops being a lumped
+filter: delay, characteristic impedance, the reflection lattice, termination, and
+what a TDR actually displays.
 
-What is **not** there yet is M3 through M11. They render a placeholder that names the
+What is **not** there yet is M4 through M11. They render a placeholder that names the
 milestone each is waiting on, beside a working instrument panel. Nothing
 plausible-sounding has been written to fill the gap — that is the failure mode this
 project is written against.
 
-Every formula either module displays is implemented in `src/dsp/` and cited to a
+Every formula a module displays is implemented in `src/dsp/` or `src/sim/` and cited to a
 section of [PHYSICS.md](PHYSICS.md), and every number in their prose is evaluated at
 render time rather than quoted, so a table in the text cannot disagree with the
 metric beside the plot.
 
 ```
-1572 tests, 35 files, all passing
+1651 tests, 38 files, all passing
 ```
 
 See [PROGRESS.md](PROGRESS.md) for what is done, what is stubbed, and the known
@@ -109,7 +111,7 @@ src/
   ui/        The components a module is written out of, and the instrument panel.
   modules/   The written module bodies, and which panels each module offers.
   app/       Router, header, home page, glossary page, error boundary.
-  sim/       Channel physics. Empty until Milestone 3 — deliberately.
+  sim/       Channel physics. The lossless transmission line so far.
 ```
 
 ### The instrument panel builds itself
@@ -307,7 +309,7 @@ summary beside every plot so the numbers are available without reading pixels.
 ## Testing
 
 ```bash
-npm test                # everything - 1572 tests across 35 files
+npm test                # everything - 1651 tests across 38 files
 npx vitest run src/dsp  # one layer
 npx vitest              # watch mode
 ```
