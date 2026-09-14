@@ -32,13 +32,13 @@ Milestone 5.
 
 ## Milestone 3 — done
 
-**1653 tests across 39 files, all passing.** `npm run verify` is clean end to end.
-Milestone 3 added 81 tests in four new files, the first file in `src/sim/`, a new
+**1659 tests across 40 files, all passing.** `npm run verify` is clean end to end.
+Milestone 3 added 87 tests in five new files, the first file in `src/sim/`, a new
 job, and the third entry in `BODIES`.
 
 | Layer          | Tests | Change |
 | -------------- | ----- | ------ |
-| `src/content`  | 757   | +2     |
+| `src/content`  | 763   | +8     |
 | `src/dsp`      | 275   | —      |
 | `src/plots`    | 265   | —      |
 | `src/state`    | 137   | —      |
@@ -111,6 +111,12 @@ Unwritten modules' placeholder pages named PROGRESS.md and PHYSICS.md as plain t
 which a reader of the site cannot open. They now link to the files on GitHub
 (`src/content/repo.ts`), opening in a new tab; a test fails if either file is renamed
 or removed. These are ordinary links, not requests the site makes.
+
+Equation source notes in the same way named "PHYSICS.md §12.3" without a link. Each
+section citation now links to that section's heading on GitHub. The anchors are
+restated in `src/content/physics-sections.ts`, and a test regenerates them from the
+file's headings and fails on any difference, or on any module citing a section that
+does not exist.
 
 The help text for **Far-end C** said a capacitive far end reflects like an open at low
 frequency. It reflects like the load resistance alone; for a matched resistor that is

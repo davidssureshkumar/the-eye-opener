@@ -35,7 +35,7 @@ render time rather than quoted, so a table in the text cannot disagree with the
 metric beside the plot.
 
 ```
-1653 tests, 39 files, all passing
+1659 tests, 40 files, all passing
 ```
 
 See [PROGRESS.md](PROGRESS.md) for what is done, what is stubbed, and the known
@@ -309,7 +309,7 @@ summary beside every plot so the numbers are available without reading pixels.
 ## Testing
 
 ```bash
-npm test                # everything - 1653 tests across 39 files
+npm test                # everything - 1659 tests across 40 files
 npx vitest run src/dsp  # one layer
 npx vitest              # watch mode
 ```

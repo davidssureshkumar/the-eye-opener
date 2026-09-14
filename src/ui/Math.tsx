@@ -18,6 +18,7 @@
 import { useMemo } from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
+import { physicsSectionUrl, splitSource } from '../content/physics-sections';
 
 export interface MathProps {
   /** TeX source, without delimiters. */
@@ -84,9 +85,30 @@ export function MathBlock({ tex, label, source, tag, className = '' }: MathBlock
       {source ? (
         <figcaption className="mt-1 text-micro text-lo">
           <span className="text-lo">Source: </span>
-          {source}
+          <SourceNote source={source} />
         </figcaption>
       ) : null}
     </figure>
+  );
+}
+
+/**
+ * A source note with each PHYSICS.md section citation linked to that section. The
+ * file is not part of the build, so the link opens the repository copy in a new tab.
+ */
+function SourceNote({ source }: { source: string }): JSX.Element {
+  return (
+    <>
+      {splitSource(source).map((part, i) => {
+        const href = part.kind === 'section' ? physicsSectionUrl(part.section) : undefined;
+        return href ? (
+          <a key={i} href={href} target="_blank" rel="noopener noreferrer">
+            {part.text}
+          </a>
+        ) : (
+          <span key={i}>{part.text}</span>
+        );
+      })}
+    </>
   );
 }
